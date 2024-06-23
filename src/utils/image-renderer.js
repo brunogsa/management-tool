@@ -1,13 +1,23 @@
-export function renderImage(mermaidCode, outputImgFilepath) {
-  const tmpFile = 'temp.mmd';
-  require('fs').writeFileSync(tmpFile, mermaidCode);
+import { exec } from 'child_process';
 
-  exec(`npx mermaid-cli -i ${tmpFile} -o ${outputFilePath}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error('Error rendering image:', stderr);
-      throw error;
-    }
+async function renderImage(diagramFilepath, outputFolderFilepath) {
+  const promise = new Promise((resolve, reject) => {
+    const commandToExec = `mmdc -i ${diagramFilepath} -o tasks-tree.png --scale 4 && mv tasks-tree.png ${outputFolderFilepath}`;
 
-    console.log('Image rendered successfully:', stdout);
+    console.log('Executing:', commandToExec, '...')
+
+    exec(commandToExec, (error, _stdout, stderr) => {
+      if (error) {
+        const err = new Error(`Error rendering image: ${stderr}`);
+        return reject(error);
+      }
+
+      return resolve();
+    });
+
   });
+
+  return promise;
 }
+
+export default renderImage;

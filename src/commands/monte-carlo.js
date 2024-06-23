@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import inputValidator from '../utils/input-validator.js';
 import { simulateMonteCarlo } from '../utils/monte-carlo.js';
 import { generateGanttChart } from '../utils/mermaid-code-generator.js';
-import { renderImage } from '../utils/image-renderer.js';
+import renderImage from '../utils/image-renderer.js';
 
 function monteCarlo(inputJsonFilepath, outputFilepath) {
   try {

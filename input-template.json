@@ -49,7 +49,7 @@
       "title": "title",
       "type": "type",
 
-      "fibonnaciEstimate": 5,
+      "fibonacciEstimate": 5,
       "mostProbableEstimateInRange": 4,
 
       "onlyStartableAt": "YYYY-MM-DD",

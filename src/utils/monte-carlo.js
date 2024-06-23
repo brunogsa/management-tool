@@ -1,42 +1,11 @@
-const cloneDeep = (obj) => JSON.parse(
+const deepClone = (obj) => JSON.parse(
   JSON.stringify(obj),
 );
 
-function simulateMonteCarlo(inputData) {
-  // Simplified Monte Carlo simulation
-  return inputData.tasks.map(task => ({
-    ...task,
-    endDate: new Date(
-      task.startDate.getTime() + task.realisticDuration * 24 * 3600 * 1000
-    )
-  }));
-}
-
-function runMonteCarloSimulation(tasks, personnel, globalParams) {
-  const simulations = [];
-  const numSimulations = 100; // Number of Monte Carlo runs
-
-  for (let i = 0; i < numSimulations; i++) {
-    let sprintResults = [];
-    let remainingTasks = cloneDeep(tasks);
-    let availablePersonnel = cloneDeep(personnel);
-    let allTasksCompleted = false;
-
-    while (!allTasksCompleted) {
-      let currentSprint = planSprint(remainingTasks, availablePersonnel);
-      sprintResults.push(currentSprint);
-      updateTasksAndPersonnel(remainingTasks, availablePersonnel);
-      allTasksCompleted = remainingTasks.every(task => task.duration <= 0);
-    }
-
-    simulations.push(calculateCompletionDate(sprintResults, globalParams.startDate));
-  }
-
-  return simulations;
-}
-
+// 1 sprint = a list of executed tasks
 function planSprint(tasks, personnel) {
   let sprint = [];
+
   tasks.filter(task => task.dependencies.every(d => d.completed)).forEach(task => {
     let assignee = findBestPersonnelForTask(task, personnel);
     if (assignee) {
@@ -44,6 +13,7 @@ function planSprint(tasks, personnel) {
       task.duration -= 2; // Assuming 2-week sprints
     }
   });
+
   return sprint;
 }
 
@@ -64,7 +34,32 @@ function calculateCompletionDate(sprints, startDate) {
   return { completionDate, sprints };
 }
 
+// 1 simulation is a sequence of sprints till project completion
+function runMonteCarloSimulation(tasks, personnel, globalParams) {
+  const simulations = [];
+  const numSimulations = 1000000;
+
+  for (let i = 0; i < numSimulations; i++) {
+    let sprintResults = [];
+    let remainingTasks = deepClone(tasks);
+    let availablePersonnel = deepClone(personnel);
+    let allTasksCompleted = false;
+
+    while (!allTasksCompleted) {
+      let currentSprint = planSprint(remainingTasks, availablePersonnel);
+      sprintResults.push(currentSprint);
+      updateTasksAndPersonnel(remainingTasks, availablePersonnel);
+      allTasksCompleted = remainingTasks.every(task => task.duration <= 0);
+    }
+
+    simulations.push(
+      calculateCompletionDate(sprintResults, globalParams.startDate)
+    );
+  }
+
+  return simulations;
+}
+
 export {
-  simulateMonteCarlo,
   runMonteCarloSimulation,
 };

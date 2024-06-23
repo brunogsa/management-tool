@@ -19,7 +19,7 @@ The tool provides the commands bellow:
 **Usage:**
 
 ```
-npm tasks-tree <input-json-filepath> <output-folder-filepath>
+npm start tasks-tree <input-json-filepath> <output-folder-filepath>
 ```
 
 **Inputs:**
@@ -33,7 +33,7 @@ npm tasks-tree <input-json-filepath> <output-folder-filepath>
 **Usage:**
 
 ```
-npm monte-carlo <json-input-filepath> <output-filepath>
+npm start monte-carlo <json-input-filepath> <output-filepath>
 ```
 
 **Inputs:**

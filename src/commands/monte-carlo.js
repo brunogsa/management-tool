@@ -26,7 +26,8 @@ function monteCarlo(inputJsonFilepath, outputFilepath) {
 
       renderImage(
         mermaidCode,
-        `${outputFilepath}/simulation_${index}.png`,
+        `simulation_${index}`,
+        outputFilepath,
       );
     });
 

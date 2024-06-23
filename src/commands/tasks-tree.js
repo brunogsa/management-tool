@@ -133,6 +133,7 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
 
     await renderImage(
       diagramFilepath,
+      "tasks-tree",
       outputFolderFilepath,
     );
 

@@ -1,7 +1,24 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 
-import { LEVEL, TASK_TYPE } from '../models.js';
+import {
+  LEVEL,
+  FIBONACCI,
+  TIME_UNITS,
+  TASK_TYPE,
+
+  DEFAULT_WEEKLY_SICK_CHANCE,
+  DEFAULT_WEEKLY_QUIT_CHANCE,
+
+  DEFAULT_TIME_TO_HIRE,
+  DEFAULT_TIME_TO_RAMPUP,
+  DEFAULT_VELOCITY_RATE,
+  DEFAULT_REWORK_RATE,
+
+  DEFAULT_TASK_SPLIT_RATE,
+
+  DEFAULT_NUM_OF_MONTE_CARLO_SIMULATIONS,
+} from '../models.js';
 
 const definitions = {
   Level: {
@@ -61,17 +78,29 @@ const definitions = {
       },
       fibonacciEstimate: {
         type: 'number',
-        enum: [0, 0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89],
+        enum: [
+          FIBONACCI._0,
+          FIBONACCI._0_5,
+          FIBONACCI._1,
+          FIBONACCI._2,
+          FIBONACCI._3,
+          FIBONACCI._5,
+          FIBONACCI._8,
+          FIBONACCI._13,
+          FIBONACCI._21,
+          FIBONACCI._34,
+          FIBONACCI._55,
+          FIBONACCI._89,
+        ],
       },
       mostProbableEstimateInRange: {
-        type: 'integer',
-        minimum: 0,
-        maximum: 89,
+        type: 'number',
+        minimum: FIBONACCI._0,
+        maximum: FIBONACCI._89,
       },
       onlyStartableAt: {
         type: 'string',
         format: 'date',
-        default: '',
       },
       parents: {
         type: 'array',
@@ -96,7 +125,10 @@ const definitions = {
     type: 'object',
     required: [
       'id',
+      'name',
       'level',
+      'hired',
+      'onboarded',
     ],
     properties: {
       id: {
@@ -108,6 +140,12 @@ const definitions = {
       },
       level: {
         $ref: '#/$defs/Level',
+      },
+      hired: {
+        type: 'boolean',
+      },
+      onboarded: {
+        type: 'boolean',
       },
       skills: {
         type: 'array',
@@ -154,10 +192,11 @@ const definitions = {
       timeAndEstimateUnit: {
         type: 'string',
         enum: [
-          'days',
-          'weeks',
-          'months',
+          TIME_UNITS.DAYS,
+          TIME_UNITS.WEEKS,
+          TIME_UNITS.MONTHS,
         ],
+        default: TIME_UNITS.WEEKS,
       },
 
       timeToHireByLevel: {
@@ -165,23 +204,30 @@ const definitions = {
         properties: {
           intern: {
             type: 'integer',
-            minimum: 0,
+            minimum: 2,
+            default: DEFAULT_TIME_TO_HIRE.INTERN,
           },
           junior: {
             type: 'integer',
-            minimum: 0,
+
+
+            minimum: 2,
+            default: DEFAULT_TIME_TO_HIRE.JUNIOR,
           },
           mid: {
             type: 'integer',
-            minimum: 0,
+            minimum: 2,
+            default: DEFAULT_TIME_TO_HIRE.MID,
           },
           senior: {
             type: 'integer',
-            minimum: 0,
+            minimum: 2,
+            default: DEFAULT_TIME_TO_HIRE.SENIOR,
           },
           specialist: {
             type: 'integer',
-            minimum: 0,
+            minimum: 2,
+            default: DEFAULT_TIME_TO_HIRE.SPECIALIST,
           },
         },
       },
@@ -191,23 +237,28 @@ const definitions = {
         properties: {
           intern: {
             type: 'integer',
-            minimum: 0,
+            minimum: 1,
+            default: DEFAULT_TIME_TO_RAMPUP.INTERN,
           },
           junior: {
             type: 'integer',
-            minimum: 0,
+            minimum: 1,
+            default: DEFAULT_TIME_TO_RAMPUP.JUNIOR,
           },
           mid: {
             type: 'integer',
-            minimum: 0,
+            minimum: 1,
+            default: DEFAULT_TIME_TO_RAMPUP.MID,
           },
           senior: {
             type: 'integer',
-            minimum: 0,
+            minimum: 1,
+            default: DEFAULT_TIME_TO_RAMPUP.SENIOR,
           },
           specialist: {
             type: 'integer',
-            minimum: 0,
+            minimum: 1,
+            default: DEFAULT_TIME_TO_RAMPUP.SPECIALIST,
           },
         },
       },
@@ -219,26 +270,31 @@ const definitions = {
             type: 'number',
             minimum: 0,
             maximum: 2,
+            default: DEFAULT_VELOCITY_RATE.INTERN,
           },
           junior: {
             type: 'number',
             minimum: 0,
             maximum: 2,
+            default: DEFAULT_VELOCITY_RATE.JUNIOR,
           },
           mid: {
             type: 'number',
             minimum: 0,
             maximum: 2,
+            default: DEFAULT_VELOCITY_RATE.MID,
           },
           senior: {
             type: 'number',
             minimum: 0,
             maximum: 2,
+            default: DEFAULT_VELOCITY_RATE.SENIOR,
           },
           specialist: {
             type: 'number',
             minimum: 0,
             maximum: 2,
+            default: DEFAULT_VELOCITY_RATE.SPECIALIST,
           },
         },
       },
@@ -250,26 +306,31 @@ const definitions = {
             type: 'number',
             minimum: 0,
             maximum: 1,
+            default: DEFAULT_REWORK_RATE.INTERN,
           },
           junior: {
             type: 'number',
             minimum: 0,
             maximum: 1,
+            default: DEFAULT_REWORK_RATE.JUNIOR,
           },
           mid: {
             type: 'number',
             minimum: 0,
             maximum: 1,
+            default: DEFAULT_REWORK_RATE.MID,
           },
           senior: {
             type: 'number',
             minimum: 0,
             maximum: 1,
+            default: DEFAULT_REWORK_RATE.SENIOR,
           },
           specialist: {
             type: 'number',
             minimum: 0,
             maximum: 1,
+            default: DEFAULT_REWORK_RATE.SPECIALIST,
           },
         },
       },
@@ -278,11 +339,13 @@ const definitions = {
         type: 'number',
         minimum: 0,
         maximum: 1,
+        default: DEFAULT_WEEKLY_SICK_CHANCE,
       },
       turnOverRate: {
         type: 'number',
         minimum: 0,
         maximum: 1,
+        default: DEFAULT_WEEKLY_QUIT_CHANCE,
       },
 
       startDate: {
@@ -293,6 +356,7 @@ const definitions = {
         type: 'number',
         minimum: 0,
         maximum: 1,
+        default: DEFAULT_TASK_SPLIT_RATE,
       },
 
       numOfMonteCarloIterations: {
@@ -338,6 +402,8 @@ const inputValidator = (inputData) => {
   // TODO: An epic cant have another epic as parent
   // TODO: A milestone can only have a project as a parent
   // TODO: A project can never have a parent
+
+  // TODO: Cant have onboarded=true, if hired=false
 
   if (!valid) {
     throw new Error(

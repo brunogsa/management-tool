@@ -4,10 +4,10 @@
 
     "timeToHireByLevel": {
       "intern": 4,
-      "junior": 5,
-      "mid": 6,
-      "senior": 7,
-      "specialist": 8
+      "junior": 4,
+      "mid": 4,
+      "senior": 5,
+      "specialist": 6
     },
 
     "timeToRampUpByLevel": {
@@ -23,7 +23,7 @@
       "junior": 0.9,
       "mid": 1,
       "senior": 1,
-      "specialist": 1.1
+      "specialist": 1
     },
 
     "reworkRateByLevel": {
@@ -76,6 +76,9 @@
       "id": "id",
       "name": "name",
       "level": "senior",
+
+      "hired": true,
+      "onboarded": true,
 
       "skills": [
         {

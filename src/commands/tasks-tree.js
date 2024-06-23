@@ -8,7 +8,7 @@ import renderImage from '../utils/image-renderer.js';
 import {
   TASK_TYPE,
   isFolderLikeTask,
-  getEmptyTask,
+  Task,
 } from '../models.js';
 
 
@@ -38,7 +38,12 @@ function highlightOrphanTasks(tasks, taskMap) {
     });
 
     if (woEpics.length > 0) {
-      const noEpicTask = getEmptyTask('wo-epic', 'w/o Epic', TASK_TYPE.EPIC);
+      const noEpicTask = new Task({
+        id: 'wo-epic',
+        title: 'w/o Epic',
+        type: TASK_TYPE.EPIC
+      });
+
       tasks.push(noEpicTask);
       taskMap.set(noEpicTask.id, noEpicTask);
 
@@ -63,7 +68,12 @@ function highlightOrphanTasks(tasks, taskMap) {
     });
 
     if (woMilestones.length > 0) {
-      const noMilestoneTask = getEmptyTask('wo-milestone', 'w/o Milestone', TASK_TYPE.MILESTONE);
+      const noMilestoneTask = new Task({
+        id: 'wo-milestone',
+        title: 'w/o Milestone',
+        type: TASK_TYPE.MILESTONE
+      });
+
       tasks.push(noMilestoneTask);
       taskMap.set(noMilestoneTask.id, noMilestoneTask);
 
@@ -88,7 +98,12 @@ function highlightOrphanTasks(tasks, taskMap) {
     });
 
     if (woProjects.length > 0) {
-      const noProjectTask = getEmptyTask('wo-project', 'w/o Project', TASK_TYPE.PROJECT);
+      const noProjectTask = new Task({
+        id: 'wo-project',
+        title: 'w/o Project',
+        type: TASK_TYPE.PROJECT
+      });
+
       tasks.push(noProjectTask);
       taskMap.set(noProjectTask.id, noProjectTask);
 

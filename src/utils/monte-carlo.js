@@ -1,12 +1,12 @@
-const deepClone = (obj) => JSON.parse(
-  JSON.stringify(obj),
-);
+import { deepClone } from './graph.js';
 
 // 1 sprint = a list of executed tasks
 function planSprint(tasks, personnel) {
   let sprint = [];
 
-  tasks.filter(task => task.dependencies.every(d => d.completed)).forEach(task => {
+  tasks.filter(
+    task => task.tasksBeingBlocked.every(d => d.remainingDuration)
+  ).forEach(task => {
     let assignee = findBestPersonnelForTask(task, personnel);
     if (assignee) {
       sprint.push({ task: task.id, assignee: assignee.name, remainingDuration: task.duration });
@@ -17,7 +17,7 @@ function planSprint(tasks, personnel) {
   return sprint;
 }
 
-function updateTasksAndPersonnel(tasks, personnel) {
+function updateTasksDuration(tasks, executedSprint) {
   tasks.forEach(task => {
     if (task.duration > 0) {
       task.completed = false;
@@ -29,15 +29,17 @@ function updateTasksAndPersonnel(tasks, personnel) {
 
 function calculateCompletionDate(sprints, startDate) {
   const totalWeeks = sprints.length * 2;
+
   let completionDate = new Date(startDate);
   completionDate.setDate(completionDate.getDate() + totalWeeks * 7);
-  return { completionDate, sprints };
+
+  return completionDate;
 }
 
 // 1 simulation is a sequence of sprints till project completion
 function runMonteCarloSimulation(tasks, personnel, globalParams) {
   const simulations = [];
-  const numSimulations = 1000000;
+  const numSimulations = globalParams.numOfMonteCarloIterations;
 
   for (let i = 0; i < numSimulations; i++) {
     let sprintResults = [];

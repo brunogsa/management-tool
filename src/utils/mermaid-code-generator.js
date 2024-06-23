@@ -37,8 +37,8 @@ function getNodeDeclaration(task, timeAndEstimateUnit) {
     node += TWO_IDENT + `Realistic: ${task.mostProbableEstimateInRange} ${timeAndEstimateUnit}` + LINE_BREAK + LINE_BREAK;
   }
 
-  if (task.blocks > 0) {
-    node += TWO_IDENT + `Blocks: ${task.blocks}` + LINE_BREAK;
+  if (task.totalNumOfBlocks > 0) {
+    node += TWO_IDENT + `Blocks: ${task.totalNumOfBlocks}` + LINE_BREAK;
   }
 
   node += IDENT + tail + LINE_BREAK;
@@ -46,13 +46,29 @@ function getNodeDeclaration(task, timeAndEstimateUnit) {
   return node;
 }
 
-function getNodeEdge(taskId, dependencyId) {
-  return `${taskId} --> ${dependencyId}`;
+let numOfChildEdges = 0;
+function getChildEdge(taskId, dependencyId) {
+  numOfChildEdges++;
+  return `${taskId} -.- ${dependencyId}`;
+}
+
+let numOfDepEdges = 0;
+function getDependencyEdge(taskId, dependencyId) {
+  numOfDepEdges++;
+  return `${taskId} ==> ${dependencyId}`;
+}
+
+function styleDepsAsRed(diagram) {
+  for (let i = 0; i < numOfDepEdges; i++) {
+    diagram += IDENT + `linkStyle ${numOfChildEdges + i} stroke:#ff6961,color:red;` + LINE_BREAK;
+  }
+
+  return diagram;
 }
 
 function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
-  const RENDERER = '%%{init: {"flowchart": {"defaultRenderer": "elk"}} }%%';
-  // const RENDERER = '';
+  const RENDERER = '';
+  // const RENDERER = '%%{init: {"flowchart": {"defaultRenderer": "elk"}} }%%';
 
   let diagram = RENDERER + LINE_BREAK;
   diagram += 'flowchart TB' + LINE_BREAK;
@@ -63,35 +79,27 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
 
   diagram += LINE_BREAK;
 
-  // tasks.filter(task => {
-  //   return task.type === TASK_TYPE.EPIC;
-
-  // }).forEach((groupTask) => {
-  //     diagram += IDENT + `subgraph ${groupTask.title}` + LINE_BREAK;
-  //     diagram += TWO_IDENT + groupTask.id + LINE_BREAK;
-
-  //     groupTask.blocksTasks
-  //       .map((taskId) => taskMap.get(taskId))
-  //       .filter((task) => {
-  //         return !isFolderLikeTask(task.type);
-  //       })
-  //       .forEach((child) => {
-  //         diagram += TWO_IDENT + child.id + LINE_BREAK;
-  //       });
-
-  //     diagram += IDENT + 'end' + LINE_BREAK;
-  //     diagram += LINE_BREAK;
-  // });
-
-  // diagram += LINE_BREAK;
-
   tasks.forEach(task => {
-    task.blocksTasks.forEach((childId) => {
-      diagram += IDENT + getNodeEdge(task.id, childId) + LINE_BREAK;
+    task.children.forEach((childId) => {
+      diagram += IDENT + getChildEdge(task.id, childId) + LINE_BREAK;
     });
 
     diagram += LINE_BREAK;
   });
+
+  diagram += LINE_BREAK;
+
+  tasks.forEach(task => {
+    task.tasksBeingBlocked.forEach((taskBeingBlocked) => {
+      diagram += IDENT + getDependencyEdge(task.id, taskBeingBlocked) + LINE_BREAK;
+    });
+
+    diagram += LINE_BREAK;
+  });
+
+  diagram += LINE_BREAK;
+
+  diagram = styleDepsAsRed(diagram);
 
   return diagram;
 }

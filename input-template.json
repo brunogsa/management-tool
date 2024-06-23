@@ -54,6 +54,10 @@
 
       "onlyStartableAt": "YYYY-MM-DD",
 
+      "parents": [
+        "id"
+      ],
+
       "dependsOnTasks": [
         "id"
       ],

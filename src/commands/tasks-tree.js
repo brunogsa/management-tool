@@ -12,7 +12,7 @@ import {
 } from '../models.js';
 
 
-function ensureProperParents(tasks, taskMap) {
+function highlightOrphanTasks(tasks, taskMap) {
   const hasAtLeast1Epic = !!tasks.find((task) => {
     return task.type === TASK_TYPE.EPIC;
   });
@@ -28,7 +28,7 @@ function ensureProperParents(tasks, taskMap) {
       return !isFolderLikeTask(task.type);
 
     }).filter((basicTask) => {
-      const hasNoEpic = !basicTask.dependsOnTasks
+      const hasNoEpic = !basicTask.parents
         .map((taskId) => taskMap.get(taskId))
         .find((dependency) => {
           return dependency.type === TASK_TYPE.EPIC;
@@ -43,7 +43,7 @@ function ensureProperParents(tasks, taskMap) {
       taskMap.set(noEpicTask.id, noEpicTask);
 
       woEpics.forEach((basicTask) => {
-        basicTask.dependsOnTasks.push(noEpicTask.id);
+        basicTask.parents.push(noEpicTask.id);
       });
     }
   }
@@ -53,7 +53,7 @@ function ensureProperParents(tasks, taskMap) {
       return task.type === TASK_TYPE.EPIC;
 
     }).filter((epicTask) => {
-      const hasNoMilestone = !epicTask.dependsOnTasks
+      const hasNoMilestone = !epicTask.parents
         .map((taskId) => taskMap.get(taskId))
         .find((dependency) => {
           return dependency.type === TASK_TYPE.MILESTONE;
@@ -68,7 +68,7 @@ function ensureProperParents(tasks, taskMap) {
       taskMap.set(noMilestoneTask.id, noMilestoneTask);
 
       woMilestones.forEach((epicTask) => {
-        epicTask.dependsOnTasks.push(noMilestoneTask.id);
+        epicTask.parents.push(noMilestoneTask.id);
       });
     }
   }
@@ -78,7 +78,7 @@ function ensureProperParents(tasks, taskMap) {
       return task.type === TASK_TYPE.MILESTONE;
 
     }).filter((milestoneTask) => {
-      const hasNoProject = !milestoneTask.dependsOnTasks
+      const hasNoProject = !milestoneTask.parents
         .map((taskId) => taskMap.get(taskId))
         .find((dependency) => {
           return dependency.type === TASK_TYPE.PROJECT;
@@ -93,7 +93,7 @@ function ensureProperParents(tasks, taskMap) {
       taskMap.set(noProjectTask.id, noProjectTask);
 
       woProjects.forEach((milestoneTask) => {
-        milestoneTask.dependsOnTasks.push(noProjectTask.id);
+        milestoneTask.parents.push(noProjectTask.id);
       });
     }
   }
@@ -109,7 +109,7 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
     const data = deepClone(inputData);
     data.taskMap = getTaskMap(data.tasks);
 
-    ensureProperParents(
+    highlightOrphanTasks(
       data.tasks,
       data.taskMap,
     );
@@ -125,7 +125,9 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
       data.globalParams.timeAndEstimateUnit,
     );
 
-    const diagramFilepath = `${outputFolderFilepath}/tasks-tree.mmd`;
+    const diagramName = "tasks-tree";
+
+    const diagramFilepath = `${outputFolderFilepath}/${diagramName}.mmd`;
     writeFileSync(
       diagramFilepath,
       mermaidCode
@@ -133,7 +135,7 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
 
     await renderImage(
       diagramFilepath,
-      "tasks-tree",
+      diagramName,
       outputFolderFilepath,
     );
 

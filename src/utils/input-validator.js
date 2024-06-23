@@ -73,6 +73,11 @@ const definitions = {
         format: 'date',
         default: '',
       },
+      parents: {
+        type: 'array',
+        items: { type: 'string' },
+        default: [],
+      },
       dependsOnTasks: {
         type: 'array',
         items: { type: 'string' },
@@ -324,8 +329,15 @@ const inputValidator = (inputData) => {
   const ajv = new Ajv({ allErrors: true });
   addFormats(ajv);
 
+  // TODO: Ensure default values are aggregated
+
   const validate = ajv.compile(jsonSchema);
   const valid = validate(inputData);
+
+  // TODO: A parent should either be an epic, milestone or project
+  // TODO: An epic cant have another epic as parent
+  // TODO: A milestone can only have a project as a parent
+  // TODO: A project can never have a parent
 
   if (!valid) {
     throw new Error(

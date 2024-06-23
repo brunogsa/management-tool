@@ -4,6 +4,8 @@ const deepClone = (obj) => JSON.parse(
   JSON.stringify(obj),
 );
 
+const setToArray = (set) => ([...set]);
+
 function getTaskMap(tasks) {
   return tasks.reduce(
     (acc, task) => {
@@ -14,21 +16,95 @@ function getTaskMap(tasks) {
   );
 }
 
-function agreggateTasksYouDirectlyBlock(tasks) {
-  const blocksTasks = new Map();
+function agreggateAllChildTasks(task, taskMap) {
+  if (task.cummulativeChildTasks) {
+    return;
+  }
+
+  task.cummulativeChildTasks = new Set();
+
+  task.children.forEach((childId) => {
+    task.cummulativeChildTasks.add(childId);
+
+    const childTask = taskMap.get(childId);
+
+    agreggateAllChildTasks(childTask, taskMap);
+
+    childTask.cummulativeChildTasks.forEach((taskId) => {
+      task.cummulativeChildTasks.add(taskId);
+    });
+  });
+
+  task.cummulativeChildTasks = setToArray(task.cummulativeChildTasks);
+}
+
+function agreggateChildrenTasks(tasks, taskMap) {
+  const mapToChildrenTasks = new Map();
 
   tasks.forEach((task) => {
-    blocksTasks.set(task.id, new Set());
+    mapToChildrenTasks.set(task.id, new Set());
   });
 
   tasks.forEach((task) => {
-    task.dependsOnTasks.forEach((dependencyId) => {
-      blocksTasks.get(dependencyId).add(task.id);
+    task.parents.forEach((parentId) => {
+      mapToChildrenTasks.get(parentId).add(task.id);
     })
   });
 
   tasks.forEach((task) => {
-    task.blocksTasks = [...blocksTasks.get(task.id)];
+    task.children = setToArray(
+      mapToChildrenTasks.get(task.id)
+    );
+  });
+
+  tasks.forEach((task) => {
+    agreggateAllChildTasks(task, taskMap);
+  });
+}
+
+function agreggateAllTasksYouBlock(task, taskMap) {
+  if (task.cummulativeTasksBeingBlocked) {
+    return;
+  }
+
+  task.cummulativeTasksBeingBlocked = new Set();
+
+  task.tasksBeingBlocked.forEach((childId) => {
+    task.cummulativeTasksBeingBlocked.add(childId);
+
+    const childTask = taskMap.get(childId);
+
+    agreggateAllTasksYouBlock(childTask, taskMap);
+
+    childTask.cummulativeTasksBeingBlocked.forEach((taskId) => {
+      task.cummulativeTasksBeingBlocked.add(taskId);
+    });
+  });
+
+  task.cummulativeTasksBeingBlocked = setToArray(task.cummulativeTasksBeingBlocked);
+}
+
+function agreggateTasksYouDirectlyBlock(tasks, taskMap) {
+  const mapToTasksBeingBlocked = new Map();
+
+  tasks.forEach((task) => {
+    mapToTasksBeingBlocked.set(task.id, new Set());
+  });
+
+  tasks.forEach((task) => {
+    task.dependsOnTasks.forEach((dependencyId) => {
+      mapToTasksBeingBlocked.get(dependencyId).add(task.id);
+    })
+  });
+
+  tasks.forEach((task) => {
+    task.tasksBeingBlocked = setToArray(
+      mapToTasksBeingBlocked.get(task.id)
+    );
+  });
+
+  tasks.forEach((task) => {
+    agreggateAllTasksYouBlock(task, taskMap);
   });
 }
 
@@ -42,11 +118,8 @@ function computeTotalEstimateForTask(task, taskMap) {
   }
 
   if (task.type === TASK_TYPE.PROJECT) {
-    const children = task.blocksTasks.map((childId) => {
+    const children = task.children.map((childId) => {
       return taskMap.get(childId);
-
-    }).filter((childTask) => {
-      return childTask.type !== TASK_TYPE.PROJECT;
     });
 
     const totalRealisticEstimate = children.reduce(
@@ -71,14 +144,8 @@ function computeTotalEstimateForTask(task, taskMap) {
   }
 
   if (task.type === TASK_TYPE.MILESTONE) {
-    const children = task.blocksTasks.map((childId) => {
+    const children = task.children.map((childId) => {
       return taskMap.get(childId);
-
-    }).filter((childTask) => {
-      return (
-        childTask.type !== TASK_TYPE.PROJECT
-        && childTask.type !== TASK_TYPE.MILESTONE
-      );
     });
 
     const totalRealisticEstimate = children.reduce(
@@ -100,11 +167,8 @@ function computeTotalEstimateForTask(task, taskMap) {
   }
 
   if (task.type === TASK_TYPE.EPIC) {
-    const children = task.blocksTasks.map((childId) => {
+    const children = task.children.map((childId) => {
       return taskMap.get(childId);
-
-    }).filter((childTask) => {
-      return !isFolderLikeTask(childTask.type);
     });
 
     const totalRealisticEstimate = children.reduce(
@@ -123,44 +187,32 @@ function computeTotalEstimateForTask(task, taskMap) {
   throw new Error(`Unexpected task type: ${task.type}`);
 }
 
-function exploreTaskGraphFromTask(task, taskMap) {
-  // console.log(`Starting to count for task ${task.id}`);
+function agreggateTotalNumOfBlocks(task, taskMap) {
+  const blocking = new Set();
 
-  if (task.cummulativeTasksBeingBlocked) {
-    // console.log(`Task ${task.id} already explored`);
-    return;
-  }
+  task.cummulativeTasksBeingBlocked.forEach((idOfTaskBeingBlocked) => {
+    blocking.add(idOfTaskBeingBlocked);
 
-  task.cummulativeTasksBeingBlocked = new Set();
+    const tasksBeingBlocked = taskMap.get(idOfTaskBeingBlocked);
 
-  task.blocksTasks.forEach((childId) => {
-    task.cummulativeTasksBeingBlocked.add(childId);
+    if (isFolderLikeTask(tasksBeingBlocked.type)) {
+      tasksBeingBlocked.cummulativeChildTasks.forEach((childId) => {
+        blocking.add(childId);
+      });
+    }
   });
 
-  task.blocksTasks.forEach((childId) => {
-    const childTask = taskMap.get(childId);
-
-    exploreTaskGraphFromTask(childTask, taskMap);
-
-    childTask.cummulativeTasksBeingBlocked.forEach((taskId) => {
-      task.cummulativeTasksBeingBlocked.add(taskId);
-    });
-  });
-
-  // console.log(`Finished exploring from task ${task.id}`);
-
-  // Convert Set to Array
-  task.cummulativeTasksBeingBlocked = [...task.cummulativeTasksBeingBlocked];
-
-  task.blocks = task.cummulativeTasksBeingBlocked.length;
+  task.blocking = setToArray(blocking);
+  task.totalNumOfBlocks = task.blocking.length;
 }
 
 function agreggateInfosByExploringTasksGraph(tasks, taskMap) {
-  agreggateTasksYouDirectlyBlock(tasks);
+  agreggateChildrenTasks(tasks, taskMap);
+  agreggateTasksYouDirectlyBlock(tasks, taskMap);
 
   tasks.forEach((task) => {
     computeTotalEstimateForTask(task, taskMap);
-    exploreTaskGraphFromTask(task, taskMap);
+    agreggateTotalNumOfBlocks(task, taskMap);
   });
 }
 

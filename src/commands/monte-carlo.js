@@ -1,14 +1,25 @@
 import { readFileSync, writeFileSync } from 'fs';
 
 import inputValidator from '../utils/input-validator.js';
+import { deepClone, getTaskMap, agreggateInfosByExploringTasksGraph } from '../utils/graph.js';
 import { runMonteCarloSimulation } from '../utils/monte-carlo.js';
 import { generateGanttChart } from '../utils/mermaid-code-generator.js';
 import renderImage from '../utils/image-renderer.js';
 
 async function monteCarlo(inputJsonFilepath, outputFilepath) {
   try {
-    const inputData = JSON.parse(readFileSync(inputJsonFilepath, 'utf8'));
+    const inputData = JSON.parse(
+      readFileSync(inputJsonFilepath, 'utf8')
+    );
     inputValidator(inputData);
+
+    const data = deepClone(inputData);
+    data.taskMap = getTaskMap(data.tasks);
+
+    agreggateInfosByExploringTasksGraph(
+      data.tasks,
+      data.taskMap,
+    );
 
     const listOfSimulations = runMonteCarloSimulation(
       inputData.tasks,
@@ -18,6 +29,10 @@ async function monteCarlo(inputJsonFilepath, outputFilepath) {
 
     console.log(
       'Monte Carlo simulation completed successfully!',
+    );
+
+    console.debug(
+      JSON.stringify(listOfSimulations, null, 2),
     );
 
     console.log('Analyzing simulations..');

@@ -47,16 +47,30 @@ function runMonteCarloSimulation(tasks, personnel, globalParams) {
     let availablePersonnel = deepClone(personnel);
     let allTasksCompleted = false;
 
+    // TODO: Monte Carlo steps
+    // 1. Simple simulation: all hired/onboarded, no rework, no split rate, no vacation, no sickness, no turnover. Only handle: different skill level requirements and velocity
+    // 2. Handle split rate
+    // 3. Handle rework
+    // 4. Handle vacation
+    // 5. Handle sick rate
+    // 6. Handle hiring + onboard
+    // 7. Handle turnover rate + re-hiring/onbording
+    // 8. Handle onlyStartableAt
+
     while (!allTasksCompleted) {
-      let currentSprint = planSprint(remainingTasks, availablePersonnel);
-      sprintResults.push(currentSprint);
-      updateTasksAndPersonnel(remainingTasks, availablePersonnel);
-      allTasksCompleted = remainingTasks.every(task => task.duration <= 0);
+      // let currentSprint = planSprint(remainingTasks, availablePersonnel);
+      // sprintResults.push(currentSprint);
+
+      // updateTasksDuration(remainingTasks, currentSprint);
+
+      // allTasksCompleted = remainingTasks.every(task => task.duration <= 0);
     }
 
-    simulations.push(
-      calculateCompletionDate(sprintResults, globalParams.startDate)
-    );
+    // simulations.push({
+    //   startDate: globalParams.startDate,
+    //   completionDate: calculateCompletionDate(sprintResults, globalParams.startDate),
+    //   sprints: sprintResults,
+    // });
   }
 
   return simulations;

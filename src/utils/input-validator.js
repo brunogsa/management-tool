@@ -361,7 +361,9 @@ const definitions = {
 
       numOfMonteCarloIterations: {
         type: 'integer',
-        minimum: 1000000,
+        // minimum: 100000,
+        minimum: 10,
+        default: DEFAULT_NUM_OF_MONTE_CARLO_SIMULATIONS,
       }
     }
   }

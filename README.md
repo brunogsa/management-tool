@@ -1,5 +1,16 @@
 # management-tool
 
+A project management simulation tool that helps visualize task dependencies and predict project completion timelines using Monte Carlo simulation.
+
+## Project Goals
+
+This tool aims to:
+
+1. **Visualize project structure** - Generate dependency graphs showing relationships between tasks, epics, milestones, and projects  
+2. **Simulate project execution** - Use Monte Carlo methods to predict completion dates considering various real-world factors  
+3. **Account for team dynamics** - Model the impact of different skill levels, hiring times, ramp-up periods, sick leave, and turnover  
+4. **Support planning decisions** - Help project managers understand the probabilistic nature of project timelines  
+
 ## Pre-reqs
 
 Ensure you have `mermaid-cli` installed:
@@ -10,7 +21,7 @@ npm i -g mermaid-cli
 
 ## Tool Functionalities
 
-The tool provides the commands bellow:
+The tool provides the commands below:
 
 ### 1. tasks-tree
 
@@ -42,4 +53,31 @@ npm start monte-carlo <json-input-filepath> <output-filepath>
 
 ## JSON Input Format
 
-Check [input-template.json](./input-template.json).
+Check [input-template.json](./input-template.json) for the complete structure. The input file includes:
+
+- **Global parameters** - Time units, hiring times, skill levels, velocity factors, etc.
+- **Tasks** - Project components with dependencies, skill requirements, and estimates  
+- **Personnel** - Team members with skills, experience levels, and vacation schedules  
+
+## Implementation Status
+
+### Completed Features
+
+- Data models for Tasks, Skills, Personnel, and Vacations  
+- Task dependency graph utilities  
+- Mermaid diagram generation for task trees  
+- Input validation framework  
+- Basic project structure and command interface  
+
+### Pending Implementation
+
+The Monte Carlo simulation is partially implemented with the following steps planned:
+
+1. Simple simulation: Basic skill requirements and velocity factors  
+2. Task split rate handling  
+3. Rework modeling  
+4. Vacation scheduling  
+5. Sick leave simulation  
+6. Hiring and onboarding processes  
+7. Turnover and re-hiring/onboarding  
+8. Task start date constraints  

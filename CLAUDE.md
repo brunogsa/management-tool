@@ -101,6 +101,13 @@ Input JSON structure (see input-template.json):
 - `tasks`: Array with id, title, type, estimates (fibonacci and most probable), dependencies (`dependsOnTasks`), hierarchy (`parents`), required skills, optional start date constraint
 - `personnel`: Array with id, name, level, hired/onboarded status, skills array, vacation periods
 
+### Project Structure
+
+Follow these folder roles:
+- `commands/` - CLI command entry points (validate inputs, call services)
+- `utils/` - Generic, reusable helper functions
+- `models.js` - Data models and type definitions only
+
 ### Code Style
 
 ES modules with ESLint configured for:
@@ -109,6 +116,79 @@ ES modules with ESLint configured for:
 - Semicolons required
 - Unix line endings
 
+**CRITICAL**: Never modify file formatting unless explicitly requested:
+- DO NOT change indentation style
+- DO NOT add or remove empty lines
+- DO NOT add spaces or tabs to empty lines
+- DO NOT add trailing whitespace
+- DO NOT change quote style or semicolon usage
+- Only modify the exact lines needed for the requested change
+
 ### Testing
 
 Currently no test files exist (tests directory only has .gitkeep). Jest is configured with Node environment and v8 coverage provider.
+
+When writing tests:
+- Test behavior, not implementation (prefer black-box integration tests)
+- Make tests deterministic and self-contained (no shared state, no randomness)
+- Use descriptive test names that explain what and why
+- Mock sparingly - only for hard-to-reach branches or flaky externals
+- Calculate expected values from mock data rather than reproducing logic under test
+
+## Development Workflow
+
+Follow this baby-step approach:
+
+1. **Green baseline first** - Ensure all existing tests and lints pass before starting new work
+2. **Write the breaking test first** - Add a failing test that captures required behavior
+3. **Make the test pass** - Implement minimal code to go green
+4. **Run the whole suite** - Verify no regressions
+5. **Update docs** - Locate and update related documentation
+6. **Human commits only** - No auto-commits; wait for human review
+
+Each step must be the smallest, testable, commit-able change.
+
+## Coding Conventions
+
+- **Preserve comments and formatting** unless explicitly asked to change them
+- **Follow existing patterns** throughout the codebase
+- **Clean code basics**: Small, pure, well-named functions; no magic numbers; prefer enums/constants; validate inputs; handle errors
+- **Functions with ≥2 params** - Use a named-param object
+- **Loops & conditions**: Avoid negatives, name complex predicates, prefer `for-of` when index unused
+- **Extract magic values** - Define reusable constants for all magic strings/numbers, preferably using enums
+- **Remove unused code** - Delete code that is no longer used along with its tests
+- **Comment non-obvious code** - Ensure everything is understandable to a mid-level developer
+- **Prefer tests and logs over comments** - Document behavior through tests and logs whenever possible
+
+### Error Handling
+
+- Always handle errors in command entry points to prevent crashes
+- Always validate and sanitize inputs before processing
+
+### Examples
+
+Avoid negatives in conditionals:
+```js
+// Instead of: if (!item.isShrinked)
+const isExpandable = !item.isShrinked;
+if (isExpandable) { }
+```
+
+Name complex conditions:
+```js
+// Instead of: if (item.type === KIT && !item.isShrinked && item.children.length < 1)
+const isExpandableKit = item.type === KIT && !item.isShrinked && item.children.length < 1;
+if (isExpandableKit) { }
+```
+
+Prefer for-of when index unused:
+```js
+// Instead of: for (let i = 0; i < items.length; i++)
+for (const item of items) { }
+```
+
+Use named parameters:
+```js
+// Instead of: function configure(retries, timeout)
+function configure({ retries, timeout }) { }
+```

@@ -28,7 +28,7 @@ function updateTasksDuration(tasks, executedSprint) {
 }
 
 function calculateCompletionDate(sprints, startDate) {
-  const totalWeeks = sprints.length * 2;
+  const totalWeeks = sprints * 2;
 
   let completionDate = new Date(startDate);
   completionDate.setDate(completionDate.getDate() + totalWeeks * 7);

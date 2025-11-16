@@ -126,14 +126,57 @@ ES modules with ESLint configured for:
 
 ### Testing
 
-Currently no test files exist (tests directory only has .gitkeep). Jest is configured with Node environment and v8 coverage provider.
+Jest is configured with Node environment, v8 coverage provider, and ES modules support via `--experimental-vm-modules` flag.
 
-When writing tests:
+**Test Suite Status**: 298 tests passing across 19 test suites
+
+**ES Modules Testing**:
+- Use `jest.unstable_mockModule()` instead of `jest.mock()` for mocking ES modules
+- Use `await import()` after setting up mocks (static imports are hoisted)
+- Mocks must be defined before the module is imported
+
+**Testing Principles**:
 - Test behavior, not implementation (prefer black-box integration tests)
 - Make tests deterministic and self-contained (no shared state, no randomness)
 - Use descriptive test names that explain what and why
-- Mock sparingly - only for hard-to-reach branches or flaky externals
+- **Only mock external dependencies** - Mock file I/O, network requests, and external processes; let internal utilities run with real implementations for true integration testing
 - Calculate expected values from mock data rather than reproducing logic under test
+
+**Example - Minimal Mocking Pattern**:
+```js
+import { jest } from '@jest/globals';
+
+// Only mock external dependencies (file I/O and rendering)
+const mockReadFileSync = jest.fn();
+const mockWriteFileSync = jest.fn();
+const mockRenderImage = jest.fn();
+
+jest.unstable_mockModule('fs', () => ({
+  readFileSync: mockReadFileSync,
+  writeFileSync: mockWriteFileSync,
+}));
+
+jest.unstable_mockModule('../../../../src/utils/image-renderer.js', () => ({
+  default: mockRenderImage,
+}));
+
+// Import after mocking
+const { default: tasksTree } = await import('../../../../src/commands/tasks-tree.js');
+
+describe('tasksTree', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockReadFileSync.mockReturnValue(JSON.stringify(validInput));
+    mockWriteFileSync.mockImplementation(() => {});
+    mockRenderImage.mockResolvedValue(undefined);
+  });
+
+  it('should validate and process tasks with real validation logic', async () => {
+    // Test runs real inputValidator, graph processing, mermaid generation
+    await expect(tasksTree('/input.json', '/output')).resolves.toBeUndefined();
+  });
+});
+```
 
 ## Development Workflow
 
@@ -147,6 +190,8 @@ Follow this baby-step approach:
 6. **Human commits only** - No auto-commits; wait for human review
 
 Each step must be the smallest, testable, commit-able change.
+
+**IMPORTANT**: Always update CLAUDE.md when CONVENTIONS.md is updated to keep documentation in sync. CLAUDE.md should reflect the current state of conventions, testing practices, and project guidelines.
 
 ## Coding Conventions
 

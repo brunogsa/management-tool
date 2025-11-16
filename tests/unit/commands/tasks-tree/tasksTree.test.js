@@ -1,44 +1,310 @@
-import tasksTree from '../../../../src/commands/tasks-tree.js';
+import { jest } from '@jest/globals';
 
-// Note: This is a simplified integration test - full testing would require extensive mocking
-// Testing the async function signature and basic behavior
+// Only mock external dependencies (file I/O and rendering)
+const mockReadFileSync = jest.fn();
+const mockWriteFileSync = jest.fn();
+const mockRenderImage = jest.fn();
+
+jest.unstable_mockModule('fs', () => ({
+  readFileSync: mockReadFileSync,
+  writeFileSync: mockWriteFileSync,
+}));
+
+jest.unstable_mockModule('../../../../src/utils/image-renderer.js', () => ({
+  default: mockRenderImage,
+}));
+
+// Import after mocking
+const { default: tasksTree } = await import('../../../../src/commands/tasks-tree.js');
+const { TIME_UNITS, TASK_TYPE } = await import('../../../../src/models.js');
+
 describe('tasksTree(inputJsonFilepath, outputFolderFilepath) -> Promise<void>', () => {
-  describe('integration behavior notes', () => {
-    // These tests describe the expected behavior but are not fully implemented
-    // Full implementation would require extensive mocking of:
-    // - fs module (readFileSync, writeFileSync)
-    // - inputValidator
-    // - deepClone, getTaskMap, agreggateInfosByExploringTasksGraph
-    // - generateTasksTreeFlowchart
-    // - renderImage
-    // - console.log, console.error
+  let consoleLogSpy;
+  let consoleErrorSpy;
 
-    it.todo('should read and parse JSON file from inputJsonFilepath');
+  // Helper to create valid test input data
+  const createValidInput = () => ({
+    globalParams: {
+      timeAndEstimateUnit: TIME_UNITS.WEEKS,
+      timeToHireByLevel: { intern: 4, junior: 4, mid: 4, senior: 5, specialist: 6 },
+      timeToRampUpByLevel: { intern: 5, junior: 4, mid: 3, senior: 2, specialist: 2 },
+      velocityByLevel: { intern: 0.6, junior: 0.9, mid: 1, senior: 1, specialist: 1 },
+      reworkRateByLevel: { intern: 0.21, junior: 0.13, mid: 0.08, senior: 0.05, specialist: 0.03 },
+      sickRate: 0.000389,
+      turnOverRate: 0.00301,
+      startDate: '2025-01-01',
+      taskSplitRate: 0.15,
+      numOfMonteCarloIterations: 1000,
+    },
+    tasks: [],
+    personnel: [],
+  });
 
-    it.todo('should validate input data using inputValidator');
+  beforeEach(() => {
+    // Reset all mocks before each test
+    jest.clearAllMocks();
 
-    it.todo('should handle invalid JSON gracefully and log error');
+    // Spy on console methods
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
-    it.todo('should handle validation errors gracefully and log error');
+    // Setup default mock implementations for external dependencies only
+    mockReadFileSync.mockReturnValue(JSON.stringify(createValidInput()));
+    mockWriteFileSync.mockImplementation(() => {});
+    mockRenderImage.mockResolvedValue(undefined);
+  });
 
-    it.todo('should deep clone input data before processing');
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+  });
 
-    it.todo('should create taskMap from tasks array');
+  describe('input validation and parsing', () => {
+    it('should read and parse JSON file from inputJsonFilepath', async () => {
+      const inputPath = '/path/to/input.json';
+      const outputPath = '/path/to/output';
 
-    it.todo('should call highlightOrphanTasks to add synthetic containers');
+      await tasksTree(inputPath, outputPath);
 
-    it.todo('should call agreggateInfosByExploringTasksGraph to populate runtime properties');
+      expect(mockReadFileSync).toHaveBeenCalledWith(inputPath, 'utf8');
+    });
 
-    it.todo('should generate mermaid flowchart code using generateTasksTreeFlowchart');
+    it('should validate input data successfully with valid input', async () => {
+      const inputData = createValidInput();
+      mockReadFileSync.mockReturnValue(JSON.stringify(inputData));
 
-    it.todo('should write mermaid code to output folder as tasks-tree.mmd');
+      // Should complete without throwing (validation passes)
+      await expect(tasksTree('/input.json', '/output')).resolves.toBeUndefined();
 
-    it.todo('should call renderImage to generate diagram image');
+      // Should log success message
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Tasks dependency flowchart generated successfully!'
+      );
+    });
 
-    it.todo('should log success message when complete');
+    it('should handle invalid JSON gracefully and log error', async () => {
+      mockReadFileSync.mockReturnValue('{ invalid json }');
 
-    it.todo('should catch and log errors during processing');
+      await tasksTree('/input.json', '/output');
 
-    it.todo('should not throw errors to caller');
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to generate tasks tree:',
+        expect.any(Error)
+      );
+    });
+
+    it('should handle validation errors gracefully and log error', async () => {
+      // Create invalid input (missing required fields)
+      const invalidInput = {
+        globalParams: {},
+        tasks: [],
+        personnel: [],
+      };
+      mockReadFileSync.mockReturnValue(JSON.stringify(invalidInput));
+
+      await tasksTree('/input.json', '/output');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to generate tasks tree:',
+        expect.any(Error)
+      );
+    });
+  });
+
+  describe('task graph processing', () => {
+    it('should process tasks and create proper graph structure', async () => {
+      const inputData = createValidInput();
+      inputData.tasks = [
+        {
+          id: 't1',
+          title: 'Task 1',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3,
+          parents: [],
+          dependsOnTasks: [],
+        },
+      ];
+      mockReadFileSync.mockReturnValue(JSON.stringify(inputData));
+
+      // Should process successfully
+      await expect(tasksTree('/input.json', '/output')).resolves.toBeUndefined();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Tasks dependency flowchart generated successfully!'
+      );
+    });
+
+    it('should handle orphan tasks by creating synthetic containers', async () => {
+      const inputData = createValidInput();
+      // Create an epic and an orphan story (no epic parent)
+      inputData.tasks = [
+        {
+          id: 'epic1',
+          title: 'Epic 1',
+          type: TASK_TYPE.EPIC,
+          fibonacciEstimate: 0,
+          mostProbableEstimateInRange: 0,
+          parents: [],
+          dependsOnTasks: [],
+        },
+        {
+          id: 'us1',
+          title: 'Orphan Story',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3,
+          parents: [], // No epic parent - should be highlighted as orphan
+          dependsOnTasks: [],
+        },
+      ];
+      mockReadFileSync.mockReturnValue(JSON.stringify(inputData));
+
+      // Should process successfully with orphan handling
+      await expect(tasksTree('/input.json', '/output')).resolves.toBeUndefined();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Tasks dependency flowchart generated successfully!'
+      );
+    });
+
+    it('should aggregate graph information including dependencies', async () => {
+      const inputData = createValidInput();
+      inputData.tasks = [
+        {
+          id: 'epic1',
+          title: 'Epic 1',
+          type: TASK_TYPE.EPIC,
+          fibonacciEstimate: 0,
+          mostProbableEstimateInRange: 0,
+          parents: [],
+          dependsOnTasks: [],
+        },
+        {
+          id: 'us1',
+          title: 'Story 1',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3,
+          parents: ['epic1'],
+          dependsOnTasks: ['us2'],
+        },
+        {
+          id: 'us2',
+          title: 'Story 2',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 3,
+          mostProbableEstimateInRange: 2,
+          parents: ['epic1'],
+          dependsOnTasks: [],
+        },
+      ];
+      mockReadFileSync.mockReturnValue(JSON.stringify(inputData));
+
+      // Should process successfully with dependencies
+      await expect(tasksTree('/input.json', '/output')).resolves.toBeUndefined();
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Tasks dependency flowchart generated successfully!'
+      );
+    });
+  });
+
+  describe('diagram generation', () => {
+    it('should generate and write mermaid flowchart code', async () => {
+      const outputPath = '/path/to/output';
+      const inputData = createValidInput();
+      mockReadFileSync.mockReturnValue(JSON.stringify(inputData));
+
+      await tasksTree('/input.json', outputPath);
+
+      // Verify .mmd file was written
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        `${outputPath}/tasks-tree.mmd`,
+        expect.stringContaining('flowchart TB')
+      );
+    });
+
+    it('should write mermaid code with actual task content', async () => {
+      const outputPath = '/path/to/output';
+      const inputData = createValidInput();
+      inputData.tasks = [
+        {
+          id: 't1',
+          title: 'Test Task',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3,
+          parents: [],
+          dependsOnTasks: [],
+        },
+      ];
+      mockReadFileSync.mockReturnValue(JSON.stringify(inputData));
+
+      await tasksTree('/input.json', outputPath);
+
+      // Verify mermaid code contains task information
+      const writtenContent = mockWriteFileSync.mock.calls[0][1];
+      expect(writtenContent).toContain('t1');
+      expect(writtenContent).toContain('Test Task');
+    });
+
+    it('should call renderImage to generate diagram image', async () => {
+      const outputPath = '/path/to/output';
+      const expectedDiagramPath = `${outputPath}/tasks-tree.mmd`;
+
+      await tasksTree('/input.json', outputPath);
+
+      expect(mockRenderImage).toHaveBeenCalledWith(
+        expectedDiagramPath,
+        'tasks-tree',
+        outputPath
+      );
+    });
+
+    it('should log success message when complete', async () => {
+      await tasksTree('/input.json', '/output');
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Tasks dependency flowchart generated successfully!'
+      );
+    });
+  });
+
+  describe('error handling', () => {
+    it('should catch and log file read errors', async () => {
+      const error = new Error('File not found');
+      mockReadFileSync.mockImplementation(() => {
+        throw error;
+      });
+
+      await tasksTree('/input.json', '/output');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to generate tasks tree:',
+        error
+      );
+    });
+
+    it('should catch and log rendering errors', async () => {
+      const error = new Error('Rendering failed');
+      mockRenderImage.mockRejectedValue(error);
+
+      await tasksTree('/input.json', '/output');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to generate tasks tree:',
+        error
+      );
+    });
+
+    it('should not throw errors to caller', async () => {
+      mockReadFileSync.mockImplementation(() => {
+        throw new Error('File read failed');
+      });
+
+      // Should not throw
+      await expect(tasksTree('/input.json', '/output')).resolves.toBeUndefined();
+    });
   });
 });

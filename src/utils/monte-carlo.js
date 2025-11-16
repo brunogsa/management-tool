@@ -77,5 +77,6 @@ function runMonteCarloSimulation(tasks, personnel, globalParams) {
 }
 
 export {
+  calculateCompletionDate,
   runMonteCarloSimulation,
 };

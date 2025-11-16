@@ -218,6 +218,13 @@ function agreggateInfosByExploringTasksGraph(tasks, taskMap) {
 
 export {
   deepClone,
+  setToArray,
   getTaskMap,
+  agreggateAllChildTasks,
+  agreggateChildrenTasks,
+  agreggateAllTasksYouBlock,
+  agreggateTasksYouDirectlyBlock,
+  computeTotalEstimateForTask,
+  agreggateTotalNumOfBlocks,
   agreggateInfosByExploringTasksGraph,
 };

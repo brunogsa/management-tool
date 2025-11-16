@@ -2,5 +2,6 @@
   "testEnvironment": "node",
   "clearMocks": true,
   "coverageProvider": "v8",
-  "transform": {}
+  "transform": {},
+  "testMatch": ["**/*.test.js"]
 }

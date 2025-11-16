@@ -167,3 +167,4 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
 }
 
 export default tasksTree;
+export { highlightOrphanTasks };

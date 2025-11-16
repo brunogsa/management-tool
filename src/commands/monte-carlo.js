@@ -53,11 +53,11 @@ async function monteCarlo(inputJsonFilepath, outputFilepath) {
     console.log('Generating Gantt charts..');
 
     [
-      [ exemplaryFor50th, "50th" ],
-      [ exemplaryFor75th, "75th" ],
-      [ exemplaryFor90th, "90th" ],
-      [ exemplaryFor95th, "95th" ],
-      [ exemplaryFor99th, "99th" ],
+      [ exemplaryFor50th, '50th' ],
+      [ exemplaryFor75th, '75th' ],
+      [ exemplaryFor90th, '90th' ],
+      [ exemplaryFor95th, '95th' ],
+      [ exemplaryFor99th, '99th' ],
 
     ].forEach(async ([ resultingSprints, identifier ]) => {
 

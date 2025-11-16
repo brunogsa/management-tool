@@ -1,5 +1,10 @@
 import { deepClone } from './graph.js';
 
+// TODO: Implement this helper function
+function findBestPersonnelForTask(_task, _personnel) {
+  return null;
+}
+
 // 1 sprint = a list of executed tasks
 function planSprint(tasks, personnel) {
   let sprint = [];
@@ -17,7 +22,7 @@ function planSprint(tasks, personnel) {
   return sprint;
 }
 
-function updateTasksDuration(tasks, executedSprint) {
+function updateTasksDuration(tasks, _executedSprint) {
   tasks.forEach(task => {
     if (task.duration > 0) {
       task.completed = false;
@@ -58,19 +63,19 @@ function runMonteCarloSimulation(tasks, personnel, globalParams) {
     // 8. Handle onlyStartableAt
 
     while (!allTasksCompleted) {
-      // let currentSprint = planSprint(remainingTasks, availablePersonnel);
-      // sprintResults.push(currentSprint);
+      let currentSprint = planSprint(remainingTasks, availablePersonnel);
+      sprintResults.push(currentSprint);
 
-      // updateTasksDuration(remainingTasks, currentSprint);
+      updateTasksDuration(remainingTasks, currentSprint);
 
-      // allTasksCompleted = remainingTasks.every(task => task.duration <= 0);
+      allTasksCompleted = remainingTasks.every(task => task.duration <= 0);
     }
 
-    // simulations.push({
-    //   startDate: globalParams.startDate,
-    //   completionDate: calculateCompletionDate(sprintResults, globalParams.startDate),
-    //   sprints: sprintResults,
-    // });
+    simulations.push({
+      startDate: globalParams.startDate,
+      completionDate: calculateCompletionDate(sprintResults, globalParams.startDate),
+      sprints: sprintResults,
+    });
   }
 
   return simulations;

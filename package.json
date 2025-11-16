@@ -7,8 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint": "eslint . && echo '\n✓ No linting errors found'",
+    "lint:fix": "eslint . --fix && echo '\n✓ Linting complete'"
   },
   "keywords": [
     "management",

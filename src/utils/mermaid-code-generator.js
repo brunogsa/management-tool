@@ -104,7 +104,7 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
   return diagram;
 }
 
-function generateGanttChart(tasks, personnel) {
+function generateGanttChart(tasks, _personnel) {
   let diagram = 'gantt\n    dateFormat  YYYY-MM-DD\n    title Project Gantt Chart\n';
 
   tasks.forEach(task => {

@@ -48,7 +48,7 @@ function agreggateChildrenTasks(tasks, taskMap) {
   tasks.forEach((task) => {
     task.parents.forEach((parentId) => {
       mapToChildrenTasks.get(parentId).add(task.id);
-    })
+    });
   });
 
   tasks.forEach((task) => {
@@ -94,7 +94,7 @@ function agreggateTasksYouDirectlyBlock(tasks, taskMap) {
   tasks.forEach((task) => {
     task.dependsOnTasks.forEach((dependencyId) => {
       mapToTasksBeingBlocked.get(dependencyId).add(task.id);
-    })
+    });
   });
 
   tasks.forEach((task) => {

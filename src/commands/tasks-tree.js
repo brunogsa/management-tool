@@ -140,7 +140,7 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
       data.globalParams.timeAndEstimateUnit,
     );
 
-    const diagramName = "tasks-tree";
+    const diagramName = 'tasks-tree';
 
     const diagramFilepath = `${outputFolderFilepath}/${diagramName}.mmd`;
     writeFileSync(

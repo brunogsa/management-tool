@@ -50,7 +50,7 @@ const isFolderLikeTask = (taskType) => {
 class Task {
   constructor({ id, title, type }) {
     if (!Object.values(TASK_TYPE).includes(type)) {
-       throw new Error(`Unknown type "${type}". Must be one of: ${JSON.stringify(TASK_TYPE)}`);
+      throw new Error(`Unknown type "${type}". Must be one of: ${JSON.stringify(TASK_TYPE)}`);
     }
 
     this.id = id;
@@ -126,7 +126,7 @@ class Task {
 class Skill {
   constructor({ name, level }) {
     if (!Object.values(LEVEL).includes(level)) {
-       throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
+      throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
     }
 
     this.name = name;
@@ -152,7 +152,7 @@ class Vacation {
 class Person {
   constructor({ id, name, level, isHired, isOnboarded }) {
     if (!Object.values(LEVEL).includes(level)) {
-       throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
+      throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
     }
 
     this.id = id;

@@ -86,7 +86,7 @@ describe('Edge Generation Functions (via integration)', () => {
       const taskMap = new Map([['epic1', parent], ['us1', child1], ['us2', child2], ['us3', child3]]);
       const result = generateTasksTreeFlowchart(tasks, taskMap, TIME_UNITS.WEEKS);
 
-      const childEdgeMatches = result.match(/epic1 -\.\- us\d/g);
+      const childEdgeMatches = result.match(/epic1 -\.- us\d/g);
       expect(childEdgeMatches).toHaveLength(3);
     });
   });

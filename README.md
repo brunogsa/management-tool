@@ -71,6 +71,24 @@ Check [input-template.json](./input-template.json) for the complete structure. T
 
 ### Pending Implementation
 
+The following refactors and design tasks are planned:
+
+- refactor name: `cummulativeChildTasks` -> all descendant tasks
+- refactor name: `cummulativeTasksBeingBlocked` -> all transitively blocked tasks
+- refactor name: `blocking` -> expanded blocking including folder children
+- refactor name: `numOfAssignedTasks` -> count of assigned tasks during simulation
+- refactor name: `remainingCapacity` -> available work capacity in current sprint
+- refactor name: `remainingRehiringDuration` -> time until replacement is hired/onboarded
+
+- refactor, should probably have a better name and signature: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `agreggateAllTasksYouBlock`, `agreggateTasksYouDirectlyBlock`, `computeTotalEstimateForTask`, `agreggateTotalNumOfBlocks`, `agreggateInfosByExploringTasksGraph`
+
+- refactor, could probably improve SRP: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `agreggateAllTasksYouBlock`, `agreggateTasksYouDirectlyBlock`, `computeTotalEstimateForTask`, `agreggateTotalNumOfBlocks`, `agreggateInfosByExploringTasksGraph`
+
+- refactor: no function should mutate params -> refactor one at a time
+- refactor: `requiredSkills[].level` -> `minLevel`
+- document: `tasks[].type`
+- should we have on `parameters.json` an array `skills`? Or should we extract those from the array `personnel`?
+
 The Monte Carlo simulation is partially implemented with the following steps planned:
 
 1. Simple simulation: Basic skill requirements and velocity factors  

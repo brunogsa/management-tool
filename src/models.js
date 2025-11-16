@@ -49,7 +49,7 @@ const isFolderLikeTask = (taskType) => {
 
 class Task {
   constructor({ id, title, type }) {
-    if (!TASK_TYPE.includes(type)) {
+    if (!Object.values(TASK_TYPE).includes(type)) {
        throw new Error(`Unknown type "${type}". Must be one of: ${JSON.stringify(TASK_TYPE)}`);
     }
 
@@ -125,7 +125,7 @@ class Task {
 
 class Skill {
   constructor({ name, level }) {
-    if (!LEVEL.includes(level)) {
+    if (!Object.values(LEVEL).includes(level)) {
        throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
     }
 
@@ -138,12 +138,20 @@ class Vacation {
   constructor({ from, to }) {
     this.from = new Date(from);
     this.to = new Date(to);
+
+    if (this.from.getTime() === this.to.getTime()) {
+      throw new Error('Vacation from and to dates cannot be the same');
+    }
+
+    if (this.to < this.from) {
+      throw new Error('Vacation to date cannot be before from date');
+    }
   }
 }
 
 class Person {
   constructor({ id, name, level, isHired, isOnboarded }) {
-    if (!LEVEL.includes(level)) {
+    if (!Object.values(LEVEL).includes(level)) {
        throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
     }
 

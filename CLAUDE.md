@@ -25,8 +25,14 @@ npm start tasks-tree <input-json-filepath> <output-folder-filepath>
 # Run monte-carlo simulation
 npm start monte-carlo <json-input-filepath> <output-folder-filepath>
 
-# Run tests
+# Run all tests with coverage
 npm test
+
+# Run tests for a specific file
+node --experimental-vm-modules node_modules/jest/bin/jest.js tests/unit/path/to/file.test.js
+
+# Run tests in watch mode
+node --experimental-vm-modules node_modules/jest/bin/jest.js --watch
 
 # Lint code
 npm run lint
@@ -110,11 +116,16 @@ Follow these folder roles:
 
 ### Code Style
 
-ES modules with ESLint configured for:
+ES modules with ESLint (flat config) configured for:
 - 2-space indentation
 - Single quotes
 - Semicolons required
 - Unix line endings
+- Unused variables with `_` prefix are allowed (for private helpers and unused params)
+
+**Naming Conventions**:
+- **Private/helper functions**: Prefix with `_` (e.g., `_setToArray`, `_agreggateAllChildTasks`)
+- **Public exports**: No prefix (e.g., `getTaskMap`, `deepClone`, `agreggateInfosByExploringTasksGraph`)
 
 **CRITICAL**: Never modify file formatting unless explicitly requested:
 - DO NOT change indentation style
@@ -127,8 +138,6 @@ ES modules with ESLint configured for:
 ### Testing
 
 Jest is configured with Node environment, v8 coverage provider, and ES modules support via `--experimental-vm-modules` flag.
-
-**Test Suite Status**: 298 tests passing across 19 test suites
 
 **ES Modules Testing**:
 - Use `jest.unstable_mockModule()` instead of `jest.mock()` for mocking ES modules
@@ -191,13 +200,12 @@ Follow this baby-step approach:
 
 Each step must be the smallest, testable, commit-able change.
 
-**IMPORTANT**: Always update CLAUDE.md when CONVENTIONS.md is updated to keep documentation in sync. CLAUDE.md should reflect the current state of conventions, testing practices, and project guidelines.
-
 ## Coding Conventions
 
 - **Preserve comments and formatting** unless explicitly asked to change them
 - **Follow existing patterns** throughout the codebase
 - **Clean code basics**: Small, pure, well-named functions; no magic numbers; prefer enums/constants; validate inputs; handle errors
+- **Prefix private helpers with `_`**: Internal/private functions should start with underscore (e.g., `_setToArray`, `_agreggateChildrenTasks`)
 - **Functions with ≥2 params** - Use a named-param object
 - **Loops & conditions**: Avoid negatives, name complex predicates, prefer `for-of` when index unused
 - **Extract magic values** - Define reusable constants for all magic strings/numbers, preferably using enums

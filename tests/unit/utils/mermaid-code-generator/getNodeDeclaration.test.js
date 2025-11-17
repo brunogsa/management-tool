@@ -1,18 +1,14 @@
-import { generateTasksTreeFlowchart } from '../../../../src/utils/mermaid-code-generator.js';
+import { _getNodeDeclaration } from '../../../../src/utils/mermaid-code-generator.js';
 import { Task, TASK_TYPE, TIME_UNITS } from '../../../../src/models.js';
 
-// TODO: getNodeDeclaration is not exported, testing via generateTasksTreeFlowchart integration -> should export to test
-
-describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integration)', () => {
+describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
   describe('bracket style based on task type', () => {
     it('should use ">]" brackets for PROJECT type', () => {
       const task = new Task({ id: 'p1', title: 'My Project', type: TASK_TYPE.PROJECT });
       task.totalRealisticEstimate = 50;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['p1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('p1>');
       expect(result).toContain(']');
@@ -22,10 +18,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       const task = new Task({ id: 'm1', title: 'My Milestone', type: TASK_TYPE.MILESTONE });
       task.totalRealisticEstimate = 30;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['m1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('m1([');
       expect(result).toContain('])');
@@ -35,10 +29,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       const task = new Task({ id: 'e1', title: 'My Epic', type: TASK_TYPE.EPIC });
       task.totalRealisticEstimate = 20;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['e1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('e1[[');
       expect(result).toContain(']]');
@@ -49,10 +41,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('us1(');
       expect(result).toContain(')');
@@ -65,10 +55,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 3;
       task.mostProbableEstimateInRange = 2;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['sp1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('sp1(');
       expect(result).toContain(')');
@@ -79,10 +67,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['tt1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('tt1(');
       expect(result).toContain(')');
@@ -93,10 +79,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 2;
       task.mostProbableEstimateInRange = 1;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['b1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('b1(');
       expect(result).toContain(')');
@@ -108,10 +92,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       const task = new Task({ id: 'p1', title: 'My Project', type: TASK_TYPE.PROJECT });
       task.totalRealisticEstimate = 50;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['p1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('Total: 50 weeks');
     });
@@ -120,10 +102,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       const task = new Task({ id: 'm1', title: 'My Milestone', type: TASK_TYPE.MILESTONE });
       task.totalRealisticEstimate = 30;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['m1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('Total: 30 weeks');
     });
@@ -132,10 +112,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       const task = new Task({ id: 'e1', title: 'My Epic', type: TASK_TYPE.EPIC });
       task.totalRealisticEstimate = 20;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['e1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('Total: 20 weeks');
     });
@@ -144,10 +122,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       const task = new Task({ id: 'e1', title: 'My Epic', type: TASK_TYPE.EPIC });
       task.totalRealisticEstimate = 20;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['e1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).not.toContain('Fibonnaci:');
       expect(result).not.toContain('Realistic:');
@@ -160,10 +136,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('Fibonnaci: 5 weeks');
       expect(result).toContain('Realistic: 3 weeks');
@@ -174,10 +148,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 3;
       task.mostProbableEstimateInRange = 2;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['sp1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('Fibonnaci: 3 weeks');
       expect(result).toContain('Realistic: 2 weeks');
@@ -188,10 +160,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).not.toContain('Total:');
     });
@@ -202,10 +172,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       const task = new Task({ id: 'e1', title: 'My Epic', type: TASK_TYPE.EPIC });
       task.totalRealisticEstimate = 20;
       task.totalNumOfBlocks = 5;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['e1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('Blocks: 5');
     });
@@ -214,10 +182,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       const task = new Task({ id: 'e1', title: 'My Epic', type: TASK_TYPE.EPIC });
       task.totalRealisticEstimate = 20;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['e1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).not.toContain('Blocks:');
     });
@@ -225,10 +191,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
     it('should not display blocks line when totalNumOfBlocks is undefined', () => {
       const task = new Task({ id: 'e1', title: 'My Epic', type: TASK_TYPE.EPIC });
       task.totalRealisticEstimate = 20;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['e1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).not.toContain('Blocks:');
     });
@@ -240,10 +204,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.DAYS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.DAYS);
 
       expect(result).toContain('Fibonnaci: 5 days');
       expect(result).toContain('Realistic: 3 days');
@@ -254,10 +216,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('Fibonnaci: 5 weeks');
       expect(result).toContain('Realistic: 3 weeks');
@@ -268,10 +228,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.MONTHS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.MONTHS);
 
       expect(result).toContain('Fibonnaci: 5 months');
       expect(result).toContain('Realistic: 3 months');
@@ -284,10 +242,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['unique-id-123', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('unique-id-123(');
     });
@@ -297,10 +253,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('Implement User Authentication');
     });
@@ -310,10 +264,8 @@ describe('getNodeDeclaration(task, timeAndEstimateUnit) -> string (via integrati
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
       task.totalNumOfBlocks = 0;
-      task.children = [];
-      task.tasksBeingBlocked = [];
 
-      const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.WEEKS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
       expect(result).toContain('__user-story__');
     });

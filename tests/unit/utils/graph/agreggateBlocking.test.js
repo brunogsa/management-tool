@@ -1,18 +1,18 @@
 import {
-  agreggateAllTasksYouBlock,
-  agreggateTasksYouDirectlyBlock,
+  _agreggateAllTasksYouBlock,
+  _agreggateTasksYouDirectlyBlock,
   getTaskMap
 } from '../../../../src/utils/graph.js';
 import { Task, TASK_TYPE } from '../../../../src/models.js';
 
-describe('agreggateAllTasksYouBlock(task, taskMap) -> void (mutates task.cummulativeTasksBeingBlocked)', () => {
+describe('_agreggateAllTasksYouBlock(task, taskMap) -> void (mutates task.cummulativeTasksBeingBlocked)', () => {
   describe('when task blocks nothing', () => {
     it('should set cummulativeTasksBeingBlocked to empty array', () => {
       const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
       task.tasksBeingBlocked = [];
       const taskMap = new Map([[task.id, task]]);
 
-      agreggateAllTasksYouBlock(task, taskMap);
+      _agreggateAllTasksYouBlock(task, taskMap);
 
       expect(task.cummulativeTasksBeingBlocked).toEqual([]);
     });
@@ -34,7 +34,7 @@ describe('agreggateAllTasksYouBlock(task, taskMap) -> void (mutates task.cummula
         ['b2', blocked2]
       ]);
 
-      agreggateAllTasksYouBlock(blocker, taskMap);
+      _agreggateAllTasksYouBlock(blocker, taskMap);
 
       expect(blocker.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['b1', 'b2']));
       expect(blocker.cummulativeTasksBeingBlocked.length).toBe(2);
@@ -55,7 +55,7 @@ describe('agreggateAllTasksYouBlock(task, taskMap) -> void (mutates task.cummula
         ['t3', t3]
       ]);
 
-      agreggateAllTasksYouBlock(t1, taskMap);
+      _agreggateAllTasksYouBlock(t1, taskMap);
 
       expect(t1.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
     });
@@ -78,7 +78,7 @@ describe('agreggateAllTasksYouBlock(task, taskMap) -> void (mutates task.cummula
         ['l2b', l2b]
       ]);
 
-      agreggateAllTasksYouBlock(root, taskMap);
+      _agreggateAllTasksYouBlock(root, taskMap);
 
       expect(root.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['l1', 'l2a', 'l2b']));
       expect(root.cummulativeTasksBeingBlocked.length).toBe(3);
@@ -93,14 +93,14 @@ describe('agreggateAllTasksYouBlock(task, taskMap) -> void (mutates task.cummula
 
       const taskMap = new Map([['t1', task]]);
 
-      agreggateAllTasksYouBlock(task, taskMap);
+      _agreggateAllTasksYouBlock(task, taskMap);
 
       expect(task.cummulativeTasksBeingBlocked).toEqual(['existing']);
     });
   });
 });
 
-describe('agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks array and task objects)', () => {
+describe('_agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks array and task objects)', () => {
   it('should populate tasksBeingBlocked by inverting dependsOnTasks relationships', () => {
     const dependency = new Task({ id: 'dep', title: 'Dependency', type: TASK_TYPE.USER_STORY });
     const dependent = new Task({ id: 'dependent', title: 'Dependent', type: TASK_TYPE.USER_STORY });
@@ -109,7 +109,7 @@ describe('agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks 
     const tasks = [dependency, dependent];
     const taskMap = getTaskMap(tasks);
 
-    agreggateTasksYouDirectlyBlock(tasks, taskMap);
+    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
 
     expect(dependency.tasksBeingBlocked).toEqual(['dependent']);
   });
@@ -119,7 +119,7 @@ describe('agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks 
     const taskMap = new Map();
 
     expect(() => {
-      agreggateTasksYouDirectlyBlock(tasks, taskMap);
+      _agreggateTasksYouDirectlyBlock(tasks, taskMap);
     }).not.toThrow();
   });
 
@@ -128,7 +128,7 @@ describe('agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks 
     const tasks = [task];
     const taskMap = getTaskMap(tasks);
 
-    agreggateTasksYouDirectlyBlock(tasks, taskMap);
+    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
 
     expect(task.tasksBeingBlocked).toEqual([]);
   });
@@ -144,7 +144,7 @@ describe('agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks 
     const tasks = [dep, t1, t2];
     const taskMap = getTaskMap(tasks);
 
-    agreggateTasksYouDirectlyBlock(tasks, taskMap);
+    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
 
     expect(dep.tasksBeingBlocked).toEqual(expect.arrayContaining(['t1', 't2']));
     expect(dep.tasksBeingBlocked.length).toBe(2);
@@ -163,12 +163,12 @@ describe('agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks 
     const tasks = [blocker, blocked1, blocked2, blocked3];
     const taskMap = getTaskMap(tasks);
 
-    agreggateTasksYouDirectlyBlock(tasks, taskMap);
+    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
 
     expect(blocker.tasksBeingBlocked.length).toBe(3);
   });
 
-  it('should call agreggateAllTasksYouBlock for each task', () => {
+  it('should call _agreggateAllTasksYouBlock for each task', () => {
     const t1 = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
     const t2 = new Task({ id: 't2', title: 'T2', type: TASK_TYPE.USER_STORY });
     t2.dependsOnTasks = ['t1'];
@@ -176,7 +176,7 @@ describe('agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks 
     const tasks = [t1, t2];
     const taskMap = getTaskMap(tasks);
 
-    agreggateTasksYouDirectlyBlock(tasks, taskMap);
+    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
 
     expect(t1.cummulativeTasksBeingBlocked).toBeDefined();
     expect(t2.cummulativeTasksBeingBlocked).toBeDefined();
@@ -193,7 +193,7 @@ describe('agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks 
     const tasks = [t1, t2, t3];
     const taskMap = getTaskMap(tasks);
 
-    agreggateTasksYouDirectlyBlock(tasks, taskMap);
+    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
 
     expect(t1.tasksBeingBlocked).toEqual(['t2']);
     expect(t1.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));

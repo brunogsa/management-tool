@@ -4,7 +4,7 @@ const IDENT = '  ';
 const TWO_IDENT = IDENT + IDENT;
 const LINE_BREAK = '\n';
 
-function getNodeDeclaration(task, timeAndEstimateUnit) {
+function _getNodeDeclaration(task, timeAndEstimateUnit) {
   let head, tail;
 
   if (task.type === TASK_TYPE.PROJECT) {
@@ -47,18 +47,18 @@ function getNodeDeclaration(task, timeAndEstimateUnit) {
 }
 
 let numOfChildEdges = 0;
-function getChildEdge(taskId, dependencyId) {
+function _getChildEdge(taskId, dependencyId) {
   numOfChildEdges++;
   return `${taskId} -.- ${dependencyId}`;
 }
 
 let numOfDepEdges = 0;
-function getDependencyEdge(taskId, dependencyId) {
+function _getDependencyEdge(taskId, dependencyId) {
   numOfDepEdges++;
   return `${taskId} ==> ${dependencyId}`;
 }
 
-function styleDepsAsRed(diagram) {
+function _styleDepsAsRed(diagram) {
   for (let i = 0; i < numOfDepEdges; i++) {
     diagram += IDENT + `linkStyle ${numOfChildEdges + i} stroke:#ff6961,color:red;` + LINE_BREAK;
   }
@@ -74,14 +74,14 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
   diagram += 'flowchart TB' + LINE_BREAK;
 
   tasks.forEach(task => {
-    diagram += IDENT + getNodeDeclaration(task, timeAndEstimateUnit) + LINE_BREAK;
+    diagram += IDENT + _getNodeDeclaration(task, timeAndEstimateUnit) + LINE_BREAK;
   });
 
   diagram += LINE_BREAK;
 
   tasks.forEach(task => {
     task.children.forEach((childId) => {
-      diagram += IDENT + getChildEdge(task.id, childId) + LINE_BREAK;
+      diagram += IDENT + _getChildEdge(task.id, childId) + LINE_BREAK;
     });
 
     diagram += LINE_BREAK;
@@ -91,7 +91,7 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
 
   tasks.forEach(task => {
     task.tasksBeingBlocked.forEach((taskBeingBlocked) => {
-      diagram += IDENT + getDependencyEdge(task.id, taskBeingBlocked) + LINE_BREAK;
+      diagram += IDENT + _getDependencyEdge(task.id, taskBeingBlocked) + LINE_BREAK;
     });
 
     diagram += LINE_BREAK;
@@ -99,7 +99,7 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
 
   diagram += LINE_BREAK;
 
-  diagram = styleDepsAsRed(diagram);
+  diagram = _styleDepsAsRed(diagram);
 
   return diagram;
 }
@@ -117,4 +117,8 @@ function generateGanttChart(tasks, _personnel) {
 export {
   generateTasksTreeFlowchart,
   generateGanttChart,
+  _getNodeDeclaration,
+  _getChildEdge,
+  _getDependencyEdge,
+  _styleDepsAsRed,
 };

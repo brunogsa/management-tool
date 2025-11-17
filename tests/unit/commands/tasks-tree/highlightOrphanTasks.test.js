@@ -1,7 +1,7 @@
 import { Task, TASK_TYPE } from '../../../../src/models.js';
-import { highlightOrphanTasks } from '../../../../src/commands/tasks-tree.js';
+import { _highlightOrphanTasks } from '../../../../src/commands/tasks-tree.js';
 
-describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMap)', () => {
+describe('_highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMap)', () => {
   describe('orphan detection for basic tasks (user stories, bugs, etc.)', () => {
     it('should create "w/o Epic" container when epics exist and basic tasks have no epic parent', () => {
       const epic1 = new Task({ id: 'epic1', title: 'Epic 1', type: TASK_TYPE.EPIC });
@@ -11,7 +11,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [epic1, orphanStory];
       const taskMap = new Map([['epic1', epic1], ['us1', orphanStory]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       const woEpic = taskMap.get('wo-epic');
       expect(woEpic).toBeDefined();
@@ -27,7 +27,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [epic1, orphanStory];
       const taskMap = new Map([['epic1', epic1], ['us1', orphanStory]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(orphanStory.parents).toContain('wo-epic');
     });
@@ -41,7 +41,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [story1, story2];
       const taskMap = new Map([['us1', story1], ['us2', story2]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.has('wo-epic')).toBe(false);
     });
@@ -54,7 +54,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [epic1, story1];
       const taskMap = new Map([['epic1', epic1], ['us1', story1]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.has('wo-epic')).toBe(false);
     });
@@ -69,7 +69,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [milestone1, orphanEpic];
       const taskMap = new Map([['m1', milestone1], ['epic1', orphanEpic]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       const woMilestone = taskMap.get('wo-milestone');
       expect(woMilestone).toBeDefined();
@@ -85,7 +85,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [milestone1, orphanEpic];
       const taskMap = new Map([['m1', milestone1], ['epic1', orphanEpic]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(orphanEpic.parents).toContain('wo-milestone');
     });
@@ -99,7 +99,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [epic1, epic2];
       const taskMap = new Map([['epic1', epic1], ['epic2', epic2]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.has('wo-milestone')).toBe(false);
     });
@@ -112,7 +112,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [milestone1, epic1];
       const taskMap = new Map([['m1', milestone1], ['epic1', epic1]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.has('wo-milestone')).toBe(false);
     });
@@ -127,7 +127,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [project1, orphanMilestone];
       const taskMap = new Map([['proj1', project1], ['m1', orphanMilestone]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       const woProject = taskMap.get('wo-project');
       expect(woProject).toBeDefined();
@@ -143,7 +143,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [project1, orphanMilestone];
       const taskMap = new Map([['proj1', project1], ['m1', orphanMilestone]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(orphanMilestone.parents).toContain('wo-project');
     });
@@ -157,7 +157,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [m1, m2];
       const taskMap = new Map([['m1', m1], ['m2', m2]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.has('wo-project')).toBe(false);
     });
@@ -170,7 +170,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const tasks = [project1, m1];
       const taskMap = new Map([['proj1', project1], ['m1', m1]]);
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.has('wo-project')).toBe(false);
     });
@@ -186,7 +186,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const taskMap = new Map([['epic1', epic1], ['us1', orphanStory]]);
       const initialSize = taskMap.size;
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.size).toBe(initialSize + 1);
       expect(taskMap.has('wo-epic')).toBe(true);
@@ -201,7 +201,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const taskMap = new Map([['m1', milestone1], ['epic1', orphanEpic]]);
       const initialSize = taskMap.size;
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.size).toBe(initialSize + 1);
       expect(taskMap.has('wo-milestone')).toBe(true);
@@ -216,7 +216,7 @@ describe('highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMa
       const taskMap = new Map([['proj1', project1], ['m1', orphanMilestone]]);
       const initialSize = taskMap.size;
 
-      highlightOrphanTasks(tasks, taskMap);
+      _highlightOrphanTasks(tasks, taskMap);
 
       expect(taskMap.size).toBe(initialSize + 1);
       expect(taskMap.has('wo-project')).toBe(true);

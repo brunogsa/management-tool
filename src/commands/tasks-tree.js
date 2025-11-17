@@ -12,7 +12,7 @@ import {
 } from '../models.js';
 
 
-function highlightOrphanTasks(tasks, taskMap) {
+function _highlightOrphanTasks(tasks, taskMap) {
   const hasAtLeast1Epic = !!tasks.find((task) => {
     return task.type === TASK_TYPE.EPIC;
   });
@@ -124,7 +124,7 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
     const data = deepClone(inputData);
     data.taskMap = getTaskMap(data.tasks);
 
-    highlightOrphanTasks(
+    _highlightOrphanTasks(
       data.tasks,
       data.taskMap,
     );
@@ -167,4 +167,4 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
 }
 
 export default tasksTree;
-export { highlightOrphanTasks };
+export { _highlightOrphanTasks };

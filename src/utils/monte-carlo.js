@@ -32,7 +32,7 @@ function updateTasksDuration(tasks, _executedSprint) {
   });
 }
 
-function calculateCompletionDate(sprints, startDate) {
+function _calculateCompletionDate(sprints, startDate) {
   const totalWeeks = sprints * 2;
 
   let completionDate = new Date(startDate);
@@ -73,7 +73,7 @@ function runMonteCarloSimulation(tasks, personnel, globalParams) {
 
     simulations.push({
       startDate: globalParams.startDate,
-      completionDate: calculateCompletionDate(sprintResults, globalParams.startDate),
+      completionDate: _calculateCompletionDate(sprintResults, globalParams.startDate),
       sprints: sprintResults,
     });
   }
@@ -82,6 +82,6 @@ function runMonteCarloSimulation(tasks, personnel, globalParams) {
 }
 
 export {
-  calculateCompletionDate,
+  _calculateCompletionDate,
   runMonteCarloSimulation,
 };

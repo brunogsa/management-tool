@@ -1,18 +1,18 @@
 import {
-  agreggateAllChildTasks,
-  agreggateChildrenTasks,
+  _agreggateAllChildTasks,
+  _agreggateChildrenTasks,
   getTaskMap
 } from '../../../../src/utils/graph.js';
 import { Task, TASK_TYPE } from '../../../../src/models.js';
 
-describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativeChildTasks)', () => {
+describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativeChildTasks)', () => {
   describe('with no children', () => {
     it('should set cummulativeChildTasks to empty array', () => {
       const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
       task.children = [];
       const taskMap = new Map([[task.id, task]]);
 
-      agreggateAllChildTasks(task, taskMap);
+      _agreggateAllChildTasks(task, taskMap);
 
       expect(task.cummulativeChildTasks).toEqual([]);
     });
@@ -34,7 +34,7 @@ describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativ
         ['c2', child2]
       ]);
 
-      agreggateAllChildTasks(parent, taskMap);
+      _agreggateAllChildTasks(parent, taskMap);
 
       expect(parent.cummulativeChildTasks).toEqual(expect.arrayContaining(['c1', 'c2']));
       expect(parent.cummulativeChildTasks.length).toBe(2);
@@ -49,7 +49,7 @@ describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativ
 
       const taskMap = new Map([['t1', task], ['c1', child]]);
 
-      agreggateAllChildTasks(task, taskMap);
+      _agreggateAllChildTasks(task, taskMap);
 
       expect(Array.isArray(task.cummulativeChildTasks)).toBe(true);
     });
@@ -71,7 +71,7 @@ describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativ
         ['c', child]
       ]);
 
-      agreggateAllChildTasks(grandparent, taskMap);
+      _agreggateAllChildTasks(grandparent, taskMap);
 
       expect(grandparent.cummulativeChildTasks).toEqual(expect.arrayContaining(['p', 'c']));
     });
@@ -97,7 +97,7 @@ describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativ
         ['l3', l3]
       ]);
 
-      agreggateAllChildTasks(root, taskMap);
+      _agreggateAllChildTasks(root, taskMap);
 
       expect(root.cummulativeChildTasks).toEqual(expect.arrayContaining(['l1', 'l2a', 'l2b', 'l3']));
       expect(root.cummulativeChildTasks.length).toBe(4);
@@ -117,7 +117,7 @@ describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativ
       tasks[3].children = [];
 
       const taskMap = getTaskMap(tasks);
-      agreggateAllChildTasks(tasks[0], taskMap);
+      _agreggateAllChildTasks(tasks[0], taskMap);
 
       expect(tasks[0].cummulativeChildTasks.length).toBe(3);
     });
@@ -131,7 +131,7 @@ describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativ
 
       const taskMap = new Map([['t1', task]]);
 
-      agreggateAllChildTasks(task, taskMap);
+      _agreggateAllChildTasks(task, taskMap);
 
       expect(task.cummulativeChildTasks).toEqual(['existing']);
     });
@@ -145,10 +145,10 @@ describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativ
 
       const taskMap = new Map([['t1', task], ['c1', child]]);
 
-      agreggateAllChildTasks(task, taskMap);
+      _agreggateAllChildTasks(task, taskMap);
       const firstResult = task.cummulativeChildTasks;
 
-      agreggateAllChildTasks(task, taskMap);
+      _agreggateAllChildTasks(task, taskMap);
       const secondResult = task.cummulativeChildTasks;
 
       expect(firstResult).toBe(secondResult);
@@ -163,13 +163,13 @@ describe('agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativ
       const taskMap = new Map([['t1', task]]);
 
       expect(() => {
-        agreggateAllChildTasks(task, taskMap);
+        _agreggateAllChildTasks(task, taskMap);
       }).toThrow();
     });
   });
 });
 
-describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array and task objects)', () => {
+describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array and task objects)', () => {
   it('should populate children array by inverting parent relationships', () => {
     const parent = new Task({ id: 'parent', title: 'Parent', type: TASK_TYPE.EPIC });
     const child = new Task({ id: 'child', title: 'Child', type: TASK_TYPE.USER_STORY });
@@ -178,7 +178,7 @@ describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array an
     const tasks = [parent, child];
     const taskMap = getTaskMap(tasks);
 
-    agreggateChildrenTasks(tasks, taskMap);
+    _agreggateChildrenTasks(tasks, taskMap);
 
     expect(parent.children).toEqual(['child']);
   });
@@ -188,7 +188,7 @@ describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array an
     const taskMap = new Map();
 
     expect(() => {
-      agreggateChildrenTasks(tasks, taskMap);
+      _agreggateChildrenTasks(tasks, taskMap);
     }).not.toThrow();
   });
 
@@ -197,7 +197,7 @@ describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array an
     const tasks = [task];
     const taskMap = getTaskMap(tasks);
 
-    agreggateChildrenTasks(tasks, taskMap);
+    _agreggateChildrenTasks(tasks, taskMap);
 
     expect(task.children).toEqual([]);
   });
@@ -213,7 +213,7 @@ describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array an
     const tasks = [epic, story1, story2];
     const taskMap = getTaskMap(tasks);
 
-    agreggateChildrenTasks(tasks, taskMap);
+    _agreggateChildrenTasks(tasks, taskMap);
 
     expect(epic.children).toEqual(expect.arrayContaining(['s1', 's2']));
     expect(epic.children.length).toBe(2);
@@ -229,7 +229,7 @@ describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array an
     const tasks = [parent1, parent2, child];
     const taskMap = getTaskMap(tasks);
 
-    agreggateChildrenTasks(tasks, taskMap);
+    _agreggateChildrenTasks(tasks, taskMap);
 
     expect(parent1.children).toContain('child');
     expect(parent2.children).toContain('child');
@@ -245,13 +245,13 @@ describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array an
     const tasks = [p1, p2, shared];
     const taskMap = getTaskMap(tasks);
 
-    agreggateChildrenTasks(tasks, taskMap);
+    _agreggateChildrenTasks(tasks, taskMap);
 
     expect(p1.children).toEqual(['shared']);
     expect(p2.children).toEqual(['shared']);
   });
 
-  it('should call agreggateAllChildTasks for each task', () => {
+  it('should call _agreggateAllChildTasks for each task', () => {
     const parent = new Task({ id: 'parent', title: 'Parent', type: TASK_TYPE.EPIC });
     const child = new Task({ id: 'child', title: 'Child', type: TASK_TYPE.USER_STORY });
     child.parents = ['parent'];
@@ -259,7 +259,7 @@ describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array an
     const tasks = [parent, child];
     const taskMap = getTaskMap(tasks);
 
-    agreggateChildrenTasks(tasks, taskMap);
+    _agreggateChildrenTasks(tasks, taskMap);
 
     expect(parent.cummulativeChildTasks).toBeDefined();
     expect(child.cummulativeChildTasks).toBeDefined();
@@ -276,7 +276,7 @@ describe('agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array an
     const tasks = [milestone, epic, story];
     const taskMap = getTaskMap(tasks);
 
-    agreggateChildrenTasks(tasks, taskMap);
+    _agreggateChildrenTasks(tasks, taskMap);
 
     expect(milestone.children).toEqual(['epic']);
     expect(milestone.cummulativeChildTasks).toEqual(expect.arrayContaining(['epic', 'story']));

@@ -1,14 +1,14 @@
-import { computeTotalEstimateForTask, agreggateTotalNumOfBlocks } from '../../../../src/utils/graph.js';
+import { _computeTotalEstimateForTask, _agreggateTotalNumOfBlocks } from '../../../../src/utils/graph.js';
 import { Task, TASK_TYPE } from '../../../../src/models.js';
 
-describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.totalRealisticEstimate)', () => {
+describe('_computeTotalEstimateForTask(task, taskMap) -> void (mutates task.totalRealisticEstimate)', () => {
   describe('for non-folder tasks', () => {
     it('should return immediately without setting totalRealisticEstimate', () => {
       const task = new Task({ id: 't1', title: 'Story', type: TASK_TYPE.USER_STORY });
       task.mostProbableEstimateInRange = 5;
       const taskMap = new Map([['t1', task]]);
 
-      computeTotalEstimateForTask(task, taskMap);
+      _computeTotalEstimateForTask(task, taskMap);
 
       expect(task.totalRealisticEstimate).toBeUndefined();
     });
@@ -18,7 +18,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
       task.children = [];
       const taskMap = new Map([['t1', task]]);
 
-      computeTotalEstimateForTask(task, taskMap);
+      _computeTotalEstimateForTask(task, taskMap);
 
       expect(task.totalRealisticEstimate).toBeUndefined();
     });
@@ -30,7 +30,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
       task.totalRealisticEstimate = 42;
       const taskMap = new Map([['t1', task]]);
 
-      computeTotalEstimateForTask(task, taskMap);
+      _computeTotalEstimateForTask(task, taskMap);
 
       expect(task.totalRealisticEstimate).toBe(42);
     });
@@ -40,7 +40,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
       task.totalRealisticEstimate = 100;
       const taskMap = new Map([['t1', task]]);
 
-      computeTotalEstimateForTask(task, taskMap);
+      _computeTotalEstimateForTask(task, taskMap);
 
       expect(task.totalRealisticEstimate).toBe(100);
     });
@@ -63,7 +63,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
         ['m2', m2]
       ]);
 
-      computeTotalEstimateForTask(project, taskMap);
+      _computeTotalEstimateForTask(project, taskMap);
 
       expect(project.totalRealisticEstimate).toBe(31); // 1 + 10 + 20
     });
@@ -85,7 +85,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
         ['story', story]
       ]);
 
-      computeTotalEstimateForTask(project, taskMap);
+      _computeTotalEstimateForTask(project, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(7); // 2 + 5
       expect(project.totalRealisticEstimate).toBe(8); // 1 + 7
@@ -109,7 +109,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
         ['e', epic]
       ]);
 
-      computeTotalEstimateForTask(project, taskMap);
+      _computeTotalEstimateForTask(project, taskMap);
 
       expect(milestone.totalRealisticEstimate).toBe(2);
       expect(epic.totalRealisticEstimate).toBe(3);
@@ -123,7 +123,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['proj', project]]);
 
-      computeTotalEstimateForTask(project, taskMap);
+      _computeTotalEstimateForTask(project, taskMap);
 
       expect(project.totalRealisticEstimate).toBe(10);
     });
@@ -143,7 +143,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['proj', project], ['m', milestone], ['e', epic]]);
 
-      computeTotalEstimateForTask(project, taskMap);
+      _computeTotalEstimateForTask(project, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(3);
       expect(milestone.totalRealisticEstimate).toBe(5); // 2 + 3
@@ -163,7 +163,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['m', milestone], ['e', epic]]);
 
-      computeTotalEstimateForTask(milestone, taskMap);
+      _computeTotalEstimateForTask(milestone, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(5);
       expect(milestone.totalRealisticEstimate).toBe(7); // 2 + 5
@@ -179,7 +179,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['m', milestone], ['s', story]]);
 
-      computeTotalEstimateForTask(milestone, taskMap);
+      _computeTotalEstimateForTask(milestone, taskMap);
 
       expect(milestone.totalRealisticEstimate).toBe(4); // 1 + 3
     });
@@ -191,7 +191,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['m', milestone]]);
 
-      computeTotalEstimateForTask(milestone, taskMap);
+      _computeTotalEstimateForTask(milestone, taskMap);
 
       expect(milestone.totalRealisticEstimate).toBe(7);
     });
@@ -209,7 +209,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['m', milestone], ['e', epic], ['s', story]]);
 
-      computeTotalEstimateForTask(milestone, taskMap);
+      _computeTotalEstimateForTask(milestone, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(5); // 2 + 3
       expect(milestone.totalRealisticEstimate).toBe(6); // 1 + 5
@@ -229,7 +229,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['e', epic], ['s1', s1], ['s2', s2]]);
 
-      computeTotalEstimateForTask(epic, taskMap);
+      _computeTotalEstimateForTask(epic, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(9); // 1 + 3 + 5
     });
@@ -241,7 +241,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['e', epic]]);
 
-      computeTotalEstimateForTask(epic, taskMap);
+      _computeTotalEstimateForTask(epic, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(8);
     });
@@ -253,7 +253,7 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['e', epic]]);
 
-      computeTotalEstimateForTask(epic, taskMap);
+      _computeTotalEstimateForTask(epic, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(13);
     });
@@ -267,21 +267,21 @@ describe('computeTotalEstimateForTask(task, taskMap) -> void (mutates task.total
 
       const taskMap = new Map([['e', epic]]);
 
-      computeTotalEstimateForTask(epic, taskMap);
+      _computeTotalEstimateForTask(epic, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(21);
     });
   });
 });
 
-describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blocking and task.totalNumOfBlocks)', () => {
+describe('_agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blocking and task.totalNumOfBlocks)', () => {
   describe('when task blocks nothing', () => {
     it('should set blocking to empty array', () => {
       const task = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
       task.cummulativeTasksBeingBlocked = [];
       const taskMap = new Map([['t1', task]]);
 
-      agreggateTotalNumOfBlocks(task, taskMap);
+      _agreggateTotalNumOfBlocks(task, taskMap);
 
       expect(task.blocking).toEqual([]);
     });
@@ -291,7 +291,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
       task.cummulativeTasksBeingBlocked = [];
       const taskMap = new Map([['t1', task]]);
 
-      agreggateTotalNumOfBlocks(task, taskMap);
+      _agreggateTotalNumOfBlocks(task, taskMap);
 
       expect(task.totalNumOfBlocks).toBe(0);
     });
@@ -311,7 +311,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
         ['b2', b2]
       ]);
 
-      agreggateTotalNumOfBlocks(blocker, taskMap);
+      _agreggateTotalNumOfBlocks(blocker, taskMap);
 
       expect(blocker.blocking).toEqual(expect.arrayContaining(['b1', 'b2']));
     });
@@ -329,7 +329,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
         ['b2', b2]
       ]);
 
-      agreggateTotalNumOfBlocks(blocker, taskMap);
+      _agreggateTotalNumOfBlocks(blocker, taskMap);
 
       expect(blocker.totalNumOfBlocks).toBe(2);
     });
@@ -348,7 +348,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
         ['epic', epic]
       ]);
 
-      agreggateTotalNumOfBlocks(blocker, taskMap);
+      _agreggateTotalNumOfBlocks(blocker, taskMap);
 
       expect(blocker.blocking).toEqual(expect.arrayContaining(['epic', 's1', 's2']));
     });
@@ -365,7 +365,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
         ['milestone', milestone]
       ]);
 
-      agreggateTotalNumOfBlocks(blocker, taskMap);
+      _agreggateTotalNumOfBlocks(blocker, taskMap);
 
       expect(blocker.blocking).toContain('milestone');
       expect(blocker.blocking).toContain('e1');
@@ -385,7 +385,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
         ['epic', epic]
       ]);
 
-      agreggateTotalNumOfBlocks(blocker, taskMap);
+      _agreggateTotalNumOfBlocks(blocker, taskMap);
 
       expect(blocker.totalNumOfBlocks).toBe(4); // epic + s1 + s2 + s3
     });
@@ -406,7 +406,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
         ['epic', epic]
       ]);
 
-      agreggateTotalNumOfBlocks(blocker, taskMap);
+      _agreggateTotalNumOfBlocks(blocker, taskMap);
 
       expect(blocker.blocking).toEqual(expect.arrayContaining(['leaf', 'epic', 's1', 's2']));
     });
@@ -426,7 +426,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
         ['e2', epic2]
       ]);
 
-      agreggateTotalNumOfBlocks(blocker, taskMap);
+      _agreggateTotalNumOfBlocks(blocker, taskMap);
 
       // s1 should only appear once
       const s1Count = blocker.blocking.filter(id => id === 's1').length;
@@ -448,7 +448,7 @@ describe('agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blockin
         ['e2', epic2]
       ]);
 
-      agreggateTotalNumOfBlocks(blocker, taskMap);
+      _agreggateTotalNumOfBlocks(blocker, taskMap);
 
       // Should be: e1, e2, s1 (deduplicated) = 3
       expect(blocker.totalNumOfBlocks).toBe(3);

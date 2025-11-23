@@ -78,7 +78,7 @@ class Task {
 
     // Undefined | TaskId[]
     this.children = undefined;
-    this.cummulativeChildTasks = undefined;
+    this.allDescendantTasks = undefined;
     this.tasksBeingBlocked = undefined;
     this.cummulativeTasksBeingBlocked = undefined;
     this.blocking = undefined;

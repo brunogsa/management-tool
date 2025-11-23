@@ -73,7 +73,6 @@ Check [input-template.json](./input-template.json) for the complete structure. T
 
 The following refactors and design tasks are planned:
 
-- refactor name: `cummulativeChildTasks` -> all descendant tasks
 - refactor name: `cummulativeTasksBeingBlocked` -> all transitively blocked tasks
 - refactor name: `blocking` -> expanded blocking including folder children
 - refactor name: `numOfAssignedTasks` -> count of assigned tasks during simulation

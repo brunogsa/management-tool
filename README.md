@@ -77,9 +77,9 @@ The following refactors and design tasks are planned:
 - refactor name: `remainingCapacity` -> available work capacity in current sprint
 - refactor name: `remainingRehiringDuration` -> time until replacement is hired/onboarded
 
-- refactor, should probably have a better name and signature: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `agreggateAllTasksYouBlock`, `agreggateTasksYouDirectlyBlock`, `computeTotalEstimateForTask`, `agreggateTotalNumOfBlocks`, `agreggateInfosByExploringTasksGraph`
+- refactor, should probably have a better name and signature: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `computeTotalEstimateForTask`, `agreggateInfosByExploringTasksGraph`
 
-- refactor, could probably improve SRP: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `agreggateAllTasksYouBlock`, `agreggateTasksYouDirectlyBlock`, `computeTotalEstimateForTask`, `agreggateTotalNumOfBlocks`, `agreggateInfosByExploringTasksGraph`
+- refactor, could probably improve SRP: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `computeTotalEstimateForTask`, `agreggateInfosByExploringTasksGraph`
 
 - refactor: no function should mutate params -> refactor one at a time
 - refactor: `requiredSkills[].level` -> `minLevel`

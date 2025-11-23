@@ -54,7 +54,7 @@ describe('Person', () => {
           expect(person.numOfAssignedTasks).toBeUndefined();
         });
 
-        it('should initialize remainingCapacity as undefined (available work capacity in current sprint)', () => {
+        it('should initialize availableCapacity as undefined (available work capacity in current sprint)', () => {
           const person = new Person({
             id: 'p1',
             name: 'Eve',
@@ -62,10 +62,10 @@ describe('Person', () => {
             isHired: true,
             isOnboarded: true
           });
-          expect(person.remainingCapacity).toBeUndefined();
+          expect(person.availableCapacity).toBeUndefined();
         });
 
-        it('should initialize remainingRehiringDuration as undefined (time until replacement is hired/onboarded)', () => {
+        it('should initialize remainingReplacementDuration as undefined (time until replacement is hired/onboarded)', () => {
           const person = new Person({
             id: 'p1',
             name: 'Frank',
@@ -73,7 +73,7 @@ describe('Person', () => {
             isHired: true,
             isOnboarded: true
           });
-          expect(person.remainingRehiringDuration).toBeUndefined();
+          expect(person.remainingReplacementDuration).toBeUndefined();
         });
       });
     });

@@ -1,62 +1,62 @@
 import { Skill, LEVEL } from '../../../src/models.js';
 
 describe('Skill', () => {
-  describe('constructor({ name, level })', () => {
+  describe('constructor({ name, minLevel })', () => {
     describe('with valid parameters', () => {
-      it('should create skill with name and level for LEVEL.INTERN', () => {
-        const skill = new Skill({ name: 'backend', level: LEVEL.INTERN });
+      it('should create skill with name and minLevel for LEVEL.INTERN', () => {
+        const skill = new Skill({ name: 'backend', minLevel: LEVEL.INTERN });
         expect(skill.name).toBe('backend');
-        expect(skill.level).toBe(LEVEL.INTERN);
+        expect(skill.minLevel).toBe(LEVEL.INTERN);
       });
 
-      it('should create skill with name and level for LEVEL.JUNIOR', () => {
-        const skill = new Skill({ name: 'frontend', level: LEVEL.JUNIOR });
+      it('should create skill with name and minLevel for LEVEL.JUNIOR', () => {
+        const skill = new Skill({ name: 'frontend', minLevel: LEVEL.JUNIOR });
         expect(skill.name).toBe('frontend');
-        expect(skill.level).toBe(LEVEL.JUNIOR);
+        expect(skill.minLevel).toBe(LEVEL.JUNIOR);
       });
 
-      it('should create skill with name and level for LEVEL.MID', () => {
-        const skill = new Skill({ name: 'fullstack', level: LEVEL.MID });
+      it('should create skill with name and minLevel for LEVEL.MID', () => {
+        const skill = new Skill({ name: 'fullstack', minLevel: LEVEL.MID });
         expect(skill.name).toBe('fullstack');
-        expect(skill.level).toBe(LEVEL.MID);
+        expect(skill.minLevel).toBe(LEVEL.MID);
       });
 
-      it('should create skill with name and level for LEVEL.SENIOR', () => {
-        const skill = new Skill({ name: 'backend', level: LEVEL.SENIOR });
+      it('should create skill with name and minLevel for LEVEL.SENIOR', () => {
+        const skill = new Skill({ name: 'backend', minLevel: LEVEL.SENIOR });
         expect(skill.name).toBe('backend');
-        expect(skill.level).toBe(LEVEL.SENIOR);
+        expect(skill.minLevel).toBe(LEVEL.SENIOR);
       });
 
-      it('should create skill with name and level for LEVEL.SPECIALIST', () => {
-        const skill = new Skill({ name: 'architecture', level: LEVEL.SPECIALIST });
+      it('should create skill with name and minLevel for LEVEL.SPECIALIST', () => {
+        const skill = new Skill({ name: 'architecture', minLevel: LEVEL.SPECIALIST });
         expect(skill.name).toBe('architecture');
-        expect(skill.level).toBe(LEVEL.SPECIALIST);
+        expect(skill.minLevel).toBe(LEVEL.SPECIALIST);
       });
     });
 
-    describe('with invalid level', () => {
-      it('should throw error for invalid level string', () => {
+    describe('with invalid minLevel', () => {
+      it('should throw error for invalid minLevel string', () => {
         expect(() => {
-          new Skill({ name: 'backend', level: 'invalid' });
-        }).toThrow('Unknown level "invalid"');
+          new Skill({ name: 'backend', minLevel: 'invalid' });
+        }).toThrow('Unknown minLevel "invalid"');
       });
 
-      it('should throw error for undefined level', () => {
+      it('should throw error for undefined minLevel', () => {
         expect(() => {
-          new Skill({ name: 'backend', level: undefined });
-        }).toThrow('Unknown level "undefined"');
+          new Skill({ name: 'backend', minLevel: undefined });
+        }).toThrow('Unknown minLevel "undefined"');
       });
 
-      it('should throw error for null level', () => {
+      it('should throw error for null minLevel', () => {
         expect(() => {
-          new Skill({ name: 'backend', level: null });
-        }).toThrow('Unknown level "null"');
+          new Skill({ name: 'backend', minLevel: null });
+        }).toThrow('Unknown minLevel "null"');
       });
 
       it('should throw error for empty string', () => {
         expect(() => {
-          new Skill({ name: 'backend', level: '' });
-        }).toThrow('Unknown level ""');
+          new Skill({ name: 'backend', minLevel: '' });
+        }).toThrow('Unknown minLevel ""');
       });
     });
   });

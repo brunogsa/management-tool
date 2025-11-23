@@ -381,13 +381,13 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
           onlyStartableAt: '2025-02-01',
           parents: ['epic1'],
           dependsOnTasks: ['t2'],
-          requiredSkills: [{ name: 'JavaScript', level: LEVEL.MID }]
+          requiredSkills: [{ name: 'JavaScript', minLevel: LEVEL.MID }]
         }]
       };
       expect(() => inputValidator(input)).not.toThrow();
     });
 
-    it('should throw error when requiredSkills has invalid skill level', () => {
+    it('should throw error when requiredSkills has invalid skill minLevel', () => {
       const input = {
         ...validInput,
         tasks: [{
@@ -396,7 +396,7 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
           type: TASK_TYPE.USER_STORY,
           fibonacciEstimate: 5,
           mostProbableEstimateInRange: 3,
-          requiredSkills: [{ name: 'JavaScript', level: 'invalid-level' }]
+          requiredSkills: [{ name: 'JavaScript', minLevel: 'invalid-level' }]
         }]
       };
       expect(() => inputValidator(input)).toThrow();
@@ -499,7 +499,7 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
           level: LEVEL.SENIOR,
           hired: true,
           onboarded: true,
-          skills: [{ name: 'JavaScript', level: LEVEL.SENIOR }],
+          skills: [{ name: 'JavaScript', minLevel: LEVEL.SENIOR }],
           vacationsAt: [{ from: '2025-06-01', to: '2025-06-15' }]
         }]
       };
@@ -521,7 +521,7 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
       expect(() => inputValidator(input)).toThrow();
     });
 
-    it('should throw error when personnel skill has invalid level', () => {
+    it('should throw error when personnel skill has invalid minLevel', () => {
       const input = {
         ...validInput,
         personnel: [{
@@ -530,7 +530,7 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
           level: LEVEL.MID,
           hired: true,
           onboarded: true,
-          skills: [{ name: 'JavaScript', level: 'invalid-level' }]
+          skills: [{ name: 'JavaScript', minLevel: 'invalid-level' }]
         }]
       };
       expect(() => inputValidator(input)).toThrow();

@@ -58,12 +58,8 @@ describe('Task', () => {
           expect(task.tasksBeingBlocked).toBeUndefined();
         });
 
-        it('should initialize cummulativeTasksBeingBlocked as undefined (all transitively blocked tasks)', () => {
-          expect(task.cummulativeTasksBeingBlocked).toBeUndefined();
-        });
-
-        it('should initialize blocking as undefined (expanded blocking including folder children)', () => {
-          expect(task.blocking).toBeUndefined();
+        it('should initialize allTasksBeingBlocked as undefined (all transitively blocked tasks with folder expansion)', () => {
+          expect(task.allTasksBeingBlocked).toBeUndefined();
         });
 
         it('should initialize totalRealisticEstimate as undefined (sum of estimates for folder tasks)', () => {

@@ -73,15 +73,13 @@ Check [input-template.json](./input-template.json) for the complete structure. T
 
 The following refactors and design tasks are planned:
 
-- refactor name: `cummulativeTasksBeingBlocked` -> all transitively blocked tasks
-- refactor name: `blocking` -> expanded blocking including folder children
 - refactor name: `numOfAssignedTasks` -> count of assigned tasks during simulation
 - refactor name: `remainingCapacity` -> available work capacity in current sprint
 - refactor name: `remainingRehiringDuration` -> time until replacement is hired/onboarded
 
-- refactor, should probably have a better name and signature: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `agreggateAllTasksYouBlock`, `agreggateTasksYouDirectlyBlock`, `computeTotalEstimateForTask`, `agreggateTotalNumOfBlocks`, `agreggateInfosByExploringTasksGraph`
+- refactor, should probably have a better name and signature: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `computeTotalEstimateForTask`, `agreggateInfosByExploringTasksGraph`
 
-- refactor, could probably improve SRP: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `agreggateAllTasksYouBlock`, `agreggateTasksYouDirectlyBlock`, `computeTotalEstimateForTask`, `agreggateTotalNumOfBlocks`, `agreggateInfosByExploringTasksGraph`
+- refactor, could probably improve SRP: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `computeTotalEstimateForTask`, `agreggateInfosByExploringTasksGraph`
 
 - refactor: no function should mutate params -> refactor one at a time
 - refactor: `requiredSkills[].level` -> `minLevel`

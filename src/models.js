@@ -80,8 +80,7 @@ class Task {
     this.children = undefined;
     this.allDescendantTasks = undefined;
     this.tasksBeingBlocked = undefined;
-    this.cummulativeTasksBeingBlocked = undefined;
-    this.blocking = undefined;
+    this.allTasksBeingBlocked = undefined;
 
     // Undefined | Number
     this.totalRealisticEstimate = undefined;

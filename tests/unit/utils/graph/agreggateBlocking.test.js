@@ -156,6 +156,97 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       expect(t1.allTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 'epic', 's1', 's2']));
       expect(t1.totalNumOfBlocks).toBe(4);
     });
+
+    it('should expand blocked Milestone to include its children in allTasksBeingBlocked', () => {
+      const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
+      const milestone = new Task({ id: 'milestone', title: 'Milestone', type: TASK_TYPE.MILESTONE });
+      const epic1 = new Task({ id: 'e1', title: 'Epic 1', type: TASK_TYPE.EPIC });
+      const epic2 = new Task({ id: 'e2', title: 'Epic 2', type: TASK_TYPE.EPIC });
+      const s1 = new Task({ id: 's1', title: 'Story 1', type: TASK_TYPE.USER_STORY });
+
+      milestone.dependsOnTasks = ['blocker'];
+      epic1.parents = ['milestone'];
+      epic2.parents = ['milestone'];
+      s1.parents = ['e1'];
+
+      const tasks = [blocker, milestone, epic1, epic2, s1];
+      const taskMap = getTaskMap(tasks);
+
+      // Setup folder structure
+      milestone.children = ['e1', 'e2'];
+      milestone.allDescendantTasks = ['e1', 'e2', 's1'];
+      epic1.children = ['s1'];
+      epic1.allDescendantTasks = ['s1'];
+      epic2.children = [];
+      epic2.allDescendantTasks = [];
+
+      _aggregateBlockingRelationships(tasks, taskMap);
+
+      expect(blocker.allTasksBeingBlocked).toEqual(expect.arrayContaining(['milestone', 'e1', 'e2', 's1']));
+      expect(blocker.totalNumOfBlocks).toBe(4);
+    });
+
+    it('should expand blocked Project to include all descendants in allTasksBeingBlocked', () => {
+      const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
+      const project = new Task({ id: 'project', title: 'Project', type: TASK_TYPE.PROJECT });
+      const milestone = new Task({ id: 'm1', title: 'Milestone 1', type: TASK_TYPE.MILESTONE });
+      const epic = new Task({ id: 'e1', title: 'Epic 1', type: TASK_TYPE.EPIC });
+      const story = new Task({ id: 's1', title: 'Story 1', type: TASK_TYPE.USER_STORY });
+
+      project.dependsOnTasks = ['blocker'];
+      milestone.parents = ['project'];
+      epic.parents = ['m1'];
+      story.parents = ['e1'];
+
+      const tasks = [blocker, project, milestone, epic, story];
+      const taskMap = getTaskMap(tasks);
+
+      // Setup folder structure
+      project.children = ['m1'];
+      project.allDescendantTasks = ['m1', 'e1', 's1'];
+      milestone.children = ['e1'];
+      milestone.allDescendantTasks = ['e1', 's1'];
+      epic.children = ['s1'];
+      epic.allDescendantTasks = ['s1'];
+
+      _aggregateBlockingRelationships(tasks, taskMap);
+
+      expect(blocker.allTasksBeingBlocked).toEqual(expect.arrayContaining(['project', 'm1', 'e1', 's1']));
+      expect(blocker.totalNumOfBlocks).toBe(4);
+    });
+
+    it('should expand all folder types (Project, Milestone, Epic) when mixed', () => {
+      const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
+      const project = new Task({ id: 'proj', title: 'Project', type: TASK_TYPE.PROJECT });
+      const milestone = new Task({ id: 'ms', title: 'Milestone', type: TASK_TYPE.MILESTONE });
+      const epic = new Task({ id: 'epic', title: 'Epic', type: TASK_TYPE.EPIC });
+
+      // Blocker blocks all three folder types
+      project.dependsOnTasks = ['blocker'];
+      milestone.dependsOnTasks = ['blocker'];
+      epic.dependsOnTasks = ['blocker'];
+
+      const tasks = [blocker, project, milestone, epic];
+      const taskMap = getTaskMap(tasks);
+
+      // Setup folder structures with some descendants
+      project.children = [];
+      project.allDescendantTasks = ['p1', 'p2'];
+      milestone.children = [];
+      milestone.allDescendantTasks = ['m1'];
+      epic.children = [];
+      epic.allDescendantTasks = ['e1', 'e2', 'e3'];
+
+      _aggregateBlockingRelationships(tasks, taskMap);
+
+      // Should include all three folders plus all their descendants
+      expect(blocker.allTasksBeingBlocked).toEqual(expect.arrayContaining([
+        'proj', 'p1', 'p2',      // Project + descendants (3)
+        'ms', 'm1',              // Milestone + descendants (2)
+        'epic', 'e1', 'e2', 'e3' // Epic + descendants (4)
+      ]));
+      expect(blocker.totalNumOfBlocks).toBe(9); // 3 + 2 + 4 = 9
+    });
   });
 
   describe('edge cases', () => {

@@ -68,7 +68,7 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
     // Verify all aggregations happened
     expect(project.children).toEqual(['epic']);
     expect(epic.children).toEqual(['story']);
-    expect(project.cummulativeChildTasks).toEqual(expect.arrayContaining(['epic', 'story']));
+    expect(project.allDescendantTasks).toEqual(expect.arrayContaining(['epic', 'story']));
     expect(project.totalRealisticEstimate).toBe(6); // 1 + 2 + 3
   });
 
@@ -146,9 +146,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       expect(epic.children).toEqual(['story']);
 
       // Verify cumulative children
-      expect(project.cummulativeChildTasks).toEqual(expect.arrayContaining(['milestone', 'epic', 'story']));
-      expect(milestone.cummulativeChildTasks).toEqual(expect.arrayContaining(['epic', 'story']));
-      expect(epic.cummulativeChildTasks).toEqual(['story']);
+      expect(project.allDescendantTasks).toEqual(expect.arrayContaining(['milestone', 'epic', 'story']));
+      expect(milestone.allDescendantTasks).toEqual(expect.arrayContaining(['epic', 'story']));
+      expect(epic.allDescendantTasks).toEqual(['story']);
 
       // Verify estimates
       expect(epic.totalRealisticEstimate).toBe(8); // 3 + 5
@@ -156,7 +156,7 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       expect(project.totalRealisticEstimate).toBe(11); // 1 + 10
     });
 
-    it('should populate children and cummulativeChildTasks for all hierarchy levels', () => {
+    it('should populate children and allDescendantTasks for all hierarchy levels', () => {
       const project = new Task({ id: 'proj', title: 'P', type: TASK_TYPE.PROJECT });
       const m1 = new Task({ id: 'm1', title: 'M1', type: TASK_TYPE.MILESTONE });
       const m2 = new Task({ id: 'm2', title: 'M2', type: TASK_TYPE.MILESTONE });
@@ -174,9 +174,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       agreggateInfosByExploringTasksGraph(tasks, taskMap);
 
       expect(project.children).toEqual(expect.arrayContaining(['m1', 'm2']));
-      expect(project.cummulativeChildTasks).toEqual(expect.arrayContaining(['m1', 'm2', 'e1', 'e2']));
-      expect(m1.cummulativeChildTasks).toEqual(['e1']);
-      expect(m2.cummulativeChildTasks).toEqual(['e2']);
+      expect(project.allDescendantTasks).toEqual(expect.arrayContaining(['m1', 'm2', 'e1', 'e2']));
+      expect(m1.allDescendantTasks).toEqual(['e1']);
+      expect(m2.allDescendantTasks).toEqual(['e2']);
     });
 
     it('should populate tasksBeingBlocked and cummulativeTasksBeingBlocked for all dependencies', () => {

@@ -50,8 +50,8 @@ describe('Task', () => {
           expect(task.children).toBeUndefined();
         });
 
-        it('should initialize cummulativeChildTasks as undefined (all descendant tasks)', () => {
-          expect(task.cummulativeChildTasks).toBeUndefined();
+        it('should initialize allDescendantTasks as undefined (all descendant tasks)', () => {
+          expect(task.allDescendantTasks).toBeUndefined();
         });
 
         it('should initialize tasksBeingBlocked as undefined (tasks that depend on this)', () => {

@@ -336,10 +336,10 @@ describe('_agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blocki
   });
 
   describe('when task blocks folder tasks', () => {
-    it('should expand folder to include all cummulativeChildTasks', () => {
+    it('should expand folder to include all allDescendantTasks', () => {
       const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
       const epic = new Task({ id: 'epic', title: 'Epic', type: TASK_TYPE.EPIC });
-      epic.cummulativeChildTasks = ['s1', 's2'];
+      epic.allDescendantTasks = ['s1', 's2'];
 
       blocker.cummulativeTasksBeingBlocked = ['epic'];
 
@@ -356,7 +356,7 @@ describe('_agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blocki
     it('should include both folder ID and all its children IDs in blocking array', () => {
       const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
       const milestone = new Task({ id: 'milestone', title: 'M', type: TASK_TYPE.MILESTONE });
-      milestone.cummulativeChildTasks = ['e1', 'e2', 's1'];
+      milestone.allDescendantTasks = ['e1', 'e2', 's1'];
 
       blocker.cummulativeTasksBeingBlocked = ['milestone'];
 
@@ -376,7 +376,7 @@ describe('_agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blocki
     it('should set totalNumOfBlocks to count of all expanded tasks', () => {
       const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
       const epic = new Task({ id: 'epic', title: 'Epic', type: TASK_TYPE.EPIC });
-      epic.cummulativeChildTasks = ['s1', 's2', 's3'];
+      epic.allDescendantTasks = ['s1', 's2', 's3'];
 
       blocker.cummulativeTasksBeingBlocked = ['epic'];
 
@@ -396,7 +396,7 @@ describe('_agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blocki
       const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
       const leaf = new Task({ id: 'leaf', title: 'Leaf', type: TASK_TYPE.BUG });
       const epic = new Task({ id: 'epic', title: 'Epic', type: TASK_TYPE.EPIC });
-      epic.cummulativeChildTasks = ['s1', 's2'];
+      epic.allDescendantTasks = ['s1', 's2'];
 
       blocker.cummulativeTasksBeingBlocked = ['leaf', 'epic'];
 
@@ -415,8 +415,8 @@ describe('_agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blocki
       const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
       const epic1 = new Task({ id: 'e1', title: 'E1', type: TASK_TYPE.EPIC });
       const epic2 = new Task({ id: 'e2', title: 'E2', type: TASK_TYPE.EPIC });
-      epic1.cummulativeChildTasks = ['s1'];
-      epic2.cummulativeChildTasks = ['s1']; // Same child
+      epic1.allDescendantTasks = ['s1'];
+      epic2.allDescendantTasks = ['s1']; // Same child
 
       blocker.cummulativeTasksBeingBlocked = ['e1', 'e2'];
 
@@ -437,8 +437,8 @@ describe('_agreggateTotalNumOfBlocks(task, taskMap) -> void (mutates task.blocki
       const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
       const epic1 = new Task({ id: 'e1', title: 'E1', type: TASK_TYPE.EPIC });
       const epic2 = new Task({ id: 'e2', title: 'E2', type: TASK_TYPE.EPIC });
-      epic1.cummulativeChildTasks = ['s1'];
-      epic2.cummulativeChildTasks = ['s1'];
+      epic1.allDescendantTasks = ['s1'];
+      epic2.allDescendantTasks = ['s1'];
 
       blocker.cummulativeTasksBeingBlocked = ['e1', 'e2'];
 

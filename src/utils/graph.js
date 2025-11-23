@@ -17,25 +17,25 @@ function getTaskMap(tasks) {
 }
 
 function _agreggateAllChildTasks(task, taskMap) {
-  if (task.cummulativeChildTasks) {
+  if (task.allDescendantTasks) {
     return;
   }
 
-  task.cummulativeChildTasks = new Set();
+  task.allDescendantTasks = new Set();
 
   task.children.forEach((childId) => {
-    task.cummulativeChildTasks.add(childId);
+    task.allDescendantTasks.add(childId);
 
     const childTask = taskMap.get(childId);
 
     _agreggateAllChildTasks(childTask, taskMap);
 
-    childTask.cummulativeChildTasks.forEach((taskId) => {
-      task.cummulativeChildTasks.add(taskId);
+    childTask.allDescendantTasks.forEach((taskId) => {
+      task.allDescendantTasks.add(taskId);
     });
   });
 
-  task.cummulativeChildTasks = _setToArray(task.cummulativeChildTasks);
+  task.allDescendantTasks = _setToArray(task.allDescendantTasks);
 }
 
 function _agreggateChildrenTasks(tasks, taskMap) {
@@ -196,7 +196,7 @@ function _agreggateTotalNumOfBlocks(task, taskMap) {
     const tasksBeingBlocked = taskMap.get(idOfTaskBeingBlocked);
 
     if (isFolderLikeTask(tasksBeingBlocked.type)) {
-      tasksBeingBlocked.cummulativeChildTasks.forEach((childId) => {
+      tasksBeingBlocked.allDescendantTasks.forEach((childId) => {
         blocking.add(childId);
       });
     }

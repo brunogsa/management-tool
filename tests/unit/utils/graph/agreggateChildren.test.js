@@ -5,21 +5,21 @@ import {
 } from '../../../../src/utils/graph.js';
 import { Task, TASK_TYPE } from '../../../../src/models.js';
 
-describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulativeChildTasks)', () => {
+describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescendantTasks)', () => {
   describe('with no children', () => {
-    it('should set cummulativeChildTasks to empty array', () => {
+    it('should set allDescendantTasks to empty array', () => {
       const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
       task.children = [];
       const taskMap = new Map([[task.id, task]]);
 
       _agreggateAllChildTasks(task, taskMap);
 
-      expect(task.cummulativeChildTasks).toEqual([]);
+      expect(task.allDescendantTasks).toEqual([]);
     });
   });
 
   describe('with direct children only', () => {
-    it('should set cummulativeChildTasks to array containing all direct children IDs', () => {
+    it('should set allDescendantTasks to array containing all direct children IDs', () => {
       const parent = new Task({ id: 'parent', title: 'Parent', type: TASK_TYPE.EPIC });
       const child1 = new Task({ id: 'c1', title: 'Child 1', type: TASK_TYPE.USER_STORY });
       const child2 = new Task({ id: 'c2', title: 'Child 2', type: TASK_TYPE.USER_STORY });
@@ -36,8 +36,8 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulati
 
       _agreggateAllChildTasks(parent, taskMap);
 
-      expect(parent.cummulativeChildTasks).toEqual(expect.arrayContaining(['c1', 'c2']));
-      expect(parent.cummulativeChildTasks.length).toBe(2);
+      expect(parent.allDescendantTasks).toEqual(expect.arrayContaining(['c1', 'c2']));
+      expect(parent.allDescendantTasks.length).toBe(2);
     });
 
     it('should convert internal Set to Array', () => {
@@ -51,12 +51,12 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulati
 
       _agreggateAllChildTasks(task, taskMap);
 
-      expect(Array.isArray(task.cummulativeChildTasks)).toBe(true);
+      expect(Array.isArray(task.allDescendantTasks)).toBe(true);
     });
   });
 
   describe('with nested children', () => {
-    it('should include grandchildren in cummulativeChildTasks', () => {
+    it('should include grandchildren in allDescendantTasks', () => {
       const grandparent = new Task({ id: 'gp', title: 'GP', type: TASK_TYPE.PROJECT });
       const parent = new Task({ id: 'p', title: 'P', type: TASK_TYPE.EPIC });
       const child = new Task({ id: 'c', title: 'C', type: TASK_TYPE.USER_STORY });
@@ -73,10 +73,10 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulati
 
       _agreggateAllChildTasks(grandparent, taskMap);
 
-      expect(grandparent.cummulativeChildTasks).toEqual(expect.arrayContaining(['p', 'c']));
+      expect(grandparent.allDescendantTasks).toEqual(expect.arrayContaining(['p', 'c']));
     });
 
-    it('should include all descendants recursively in cummulativeChildTasks', () => {
+    it('should include all descendants recursively in allDescendantTasks', () => {
       const root = new Task({ id: 'root', title: 'Root', type: TASK_TYPE.PROJECT });
       const l1 = new Task({ id: 'l1', title: 'L1', type: TASK_TYPE.MILESTONE });
       const l2a = new Task({ id: 'l2a', title: 'L2A', type: TASK_TYPE.EPIC });
@@ -99,8 +99,8 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulati
 
       _agreggateAllChildTasks(root, taskMap);
 
-      expect(root.cummulativeChildTasks).toEqual(expect.arrayContaining(['l1', 'l2a', 'l2b', 'l3']));
-      expect(root.cummulativeChildTasks.length).toBe(4);
+      expect(root.allDescendantTasks).toEqual(expect.arrayContaining(['l1', 'l2a', 'l2b', 'l3']));
+      expect(root.allDescendantTasks.length).toBe(4);
     });
 
     it('should traverse and aggregate multiple levels of nesting', () => {
@@ -119,24 +119,24 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulati
       const taskMap = getTaskMap(tasks);
       _agreggateAllChildTasks(tasks[0], taskMap);
 
-      expect(tasks[0].cummulativeChildTasks.length).toBe(3);
+      expect(tasks[0].allDescendantTasks.length).toBe(3);
     });
   });
 
   describe('optimization', () => {
-    it('should return immediately if cummulativeChildTasks already computed', () => {
+    it('should return immediately if allDescendantTasks already computed', () => {
       const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.EPIC });
       task.children = ['c1'];
-      task.cummulativeChildTasks = ['existing'];
+      task.allDescendantTasks = ['existing'];
 
       const taskMap = new Map([['t1', task]]);
 
       _agreggateAllChildTasks(task, taskMap);
 
-      expect(task.cummulativeChildTasks).toEqual(['existing']);
+      expect(task.allDescendantTasks).toEqual(['existing']);
     });
 
-    it('should not recompute cummulativeChildTasks on subsequent calls', () => {
+    it('should not recompute allDescendantTasks on subsequent calls', () => {
       const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.EPIC });
       const child = new Task({ id: 'c1', title: 'Child', type: TASK_TYPE.USER_STORY });
 
@@ -146,10 +146,10 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.cummulati
       const taskMap = new Map([['t1', task], ['c1', child]]);
 
       _agreggateAllChildTasks(task, taskMap);
-      const firstResult = task.cummulativeChildTasks;
+      const firstResult = task.allDescendantTasks;
 
       _agreggateAllChildTasks(task, taskMap);
-      const secondResult = task.cummulativeChildTasks;
+      const secondResult = task.allDescendantTasks;
 
       expect(firstResult).toBe(secondResult);
     });
@@ -261,11 +261,11 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
 
     _agreggateChildrenTasks(tasks, taskMap);
 
-    expect(parent.cummulativeChildTasks).toBeDefined();
-    expect(child.cummulativeChildTasks).toBeDefined();
+    expect(parent.allDescendantTasks).toBeDefined();
+    expect(child.allDescendantTasks).toBeDefined();
   });
 
-  it('should populate both children and cummulativeChildTasks for all tasks', () => {
+  it('should populate both children and allDescendantTasks for all tasks', () => {
     const milestone = new Task({ id: 'milestone', title: 'M', type: TASK_TYPE.MILESTONE });
     const epic = new Task({ id: 'epic', title: 'E', type: TASK_TYPE.EPIC });
     const story = new Task({ id: 'story', title: 'S', type: TASK_TYPE.USER_STORY });
@@ -279,8 +279,8 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     _agreggateChildrenTasks(tasks, taskMap);
 
     expect(milestone.children).toEqual(['epic']);
-    expect(milestone.cummulativeChildTasks).toEqual(expect.arrayContaining(['epic', 'story']));
+    expect(milestone.allDescendantTasks).toEqual(expect.arrayContaining(['epic', 'story']));
     expect(epic.children).toEqual(['story']);
-    expect(epic.cummulativeChildTasks).toEqual(['story']);
+    expect(epic.allDescendantTasks).toEqual(['story']);
   });
 });

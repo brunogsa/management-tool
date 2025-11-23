@@ -36,14 +36,14 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
     expect(epic.totalRealisticEstimate).toBeDefined();
   });
 
-  it('should call agreggateTotalNumOfBlocks for each task', () => {
+  it('should call aggregateBlockingRelationships for each task', () => {
     const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
     const tasks = [task];
     const taskMap = getTaskMap(tasks);
 
     agreggateInfosByExploringTasksGraph(tasks, taskMap);
 
-    expect(task.blocking).toBeDefined();
+    expect(task.allTasksBeingBlocked).toBeDefined();
     expect(task.totalNumOfBlocks).toBeDefined();
   });
 
@@ -108,13 +108,10 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
 
       // Blocking
       expect(t1.tasksBeingBlocked).toEqual(['t2']);
-      expect(t1.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
-      expect(t2.tasksBeingBlocked).toEqual(['t3']);
-
-      // Blocking expansion
-      expect(t1.blocking).toEqual(expect.arrayContaining(['t2', 't3']));
+      expect(t1.allTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
       expect(t1.totalNumOfBlocks).toBe(2);
-      expect(t2.blocking).toEqual(['t3']);
+      expect(t2.tasksBeingBlocked).toEqual(['t3']);
+      expect(t2.allTasksBeingBlocked).toEqual(['t3']);
       expect(t2.totalNumOfBlocks).toBe(1);
     });
   });
@@ -179,7 +176,7 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       expect(m2.allDescendantTasks).toEqual(['e2']);
     });
 
-    it('should populate tasksBeingBlocked and cummulativeTasksBeingBlocked for all dependencies', () => {
+    it('should populate tasksBeingBlocked and allTasksBeingBlocked for all dependencies', () => {
       const t1 = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
       const t2 = new Task({ id: 't2', title: 'T2', type: TASK_TYPE.USER_STORY });
       const t3 = new Task({ id: 't3', title: 'T3', type: TASK_TYPE.USER_STORY });
@@ -195,7 +192,7 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       agreggateInfosByExploringTasksGraph(tasks, taskMap);
 
       expect(t1.tasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
-      expect(t1.cummulativeTasksBeingBlocked.length).toBeGreaterThan(0);
+      expect(t1.allTasksBeingBlocked.length).toBeGreaterThan(0);
       expect(t2.tasksBeingBlocked).toEqual(['t3']);
       expect(t3.tasksBeingBlocked).toEqual(['t4']);
     });
@@ -222,7 +219,7 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       expect(project.totalRealisticEstimate).toBe(6); // 1 + 5
     });
 
-    it('should compute blocking and totalNumOfBlocks for all tasks', () => {
+    it('should compute allTasksBeingBlocked and totalNumOfBlocks for all tasks', () => {
       const epic = new Task({ id: 'epic', title: 'Epic', type: TASK_TYPE.EPIC });
       const s1 = new Task({ id: 's1', title: 'S1', type: TASK_TYPE.USER_STORY });
       const s2 = new Task({ id: 's2', title: 'S2', type: TASK_TYPE.USER_STORY });
@@ -236,9 +233,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
 
       agreggateInfosByExploringTasksGraph(tasks, taskMap);
 
-      expect(s1.blocking).toEqual(['s2']);
+      expect(s1.allTasksBeingBlocked).toEqual(['s2']);
       expect(s1.totalNumOfBlocks).toBe(1);
-      expect(s2.blocking).toEqual([]);
+      expect(s2.allTasksBeingBlocked).toEqual([]);
       expect(s2.totalNumOfBlocks).toBe(0);
     });
   });

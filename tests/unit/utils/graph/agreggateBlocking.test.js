@@ -1,203 +1,182 @@
 import {
-  _agreggateAllTasksYouBlock,
-  _agreggateTasksYouDirectlyBlock,
+  _aggregateBlockingRelationships,
   getTaskMap
 } from '../../../../src/utils/graph.js';
 import { Task, TASK_TYPE } from '../../../../src/models.js';
 
-describe('_agreggateAllTasksYouBlock(task, taskMap) -> void (mutates task.cummulativeTasksBeingBlocked)', () => {
+describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks)', () => {
   describe('when task blocks nothing', () => {
-    it('should set cummulativeTasksBeingBlocked to empty array', () => {
+    it('should set tasksBeingBlocked and allTasksBeingBlocked to empty arrays', () => {
       const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
-      task.tasksBeingBlocked = [];
-      const taskMap = new Map([[task.id, task]]);
+      const tasks = [task];
+      const taskMap = getTaskMap(tasks);
 
-      _agreggateAllTasksYouBlock(task, taskMap);
+      _aggregateBlockingRelationships(tasks, taskMap);
 
-      expect(task.cummulativeTasksBeingBlocked).toEqual([]);
+      expect(task.tasksBeingBlocked).toEqual([]);
+      expect(task.allTasksBeingBlocked).toEqual([]);
+      expect(task.totalNumOfBlocks).toBe(0);
     });
   });
 
-  describe('when task blocks other tasks', () => {
-    it('should include all directly blocked task IDs in cummulativeTasksBeingBlocked', () => {
-      const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
-      const blocked1 = new Task({ id: 'b1', title: 'Blocked 1', type: TASK_TYPE.USER_STORY });
-      const blocked2 = new Task({ id: 'b2', title: 'Blocked 2', type: TASK_TYPE.USER_STORY });
+  describe('direct blocking relationships', () => {
+    it('should populate tasksBeingBlocked by inverting dependsOnTasks relationships', () => {
+      const dependency = new Task({ id: 'dep', title: 'Dependency', type: TASK_TYPE.USER_STORY });
+      const dependent = new Task({ id: 'dependent', title: 'Dependent', type: TASK_TYPE.USER_STORY });
+      dependent.dependsOnTasks = ['dep'];
 
-      blocker.tasksBeingBlocked = ['b1', 'b2'];
-      blocked1.tasksBeingBlocked = [];
-      blocked2.tasksBeingBlocked = [];
+      const tasks = [dependency, dependent];
+      const taskMap = getTaskMap(tasks);
 
-      const taskMap = new Map([
-        ['blocker', blocker],
-        ['b1', blocked1],
-        ['b2', blocked2]
-      ]);
+      _aggregateBlockingRelationships(tasks, taskMap);
 
-      _agreggateAllTasksYouBlock(blocker, taskMap);
-
-      expect(blocker.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['b1', 'b2']));
-      expect(blocker.cummulativeTasksBeingBlocked.length).toBe(2);
+      expect(dependency.tasksBeingBlocked).toEqual(['dependent']);
+      expect(dependency.allTasksBeingBlocked).toEqual(['dependent']);
     });
 
-    it('should include all transitively blocked task IDs', () => {
+    it('should handle multiple tasks depending on same dependency', () => {
+      const dep = new Task({ id: 'dep', title: 'Dep', type: TASK_TYPE.USER_STORY });
+      const t1 = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
+      const t2 = new Task({ id: 't2', title: 'T2', type: TASK_TYPE.USER_STORY });
+
+      t1.dependsOnTasks = ['dep'];
+      t2.dependsOnTasks = ['dep'];
+
+      const tasks = [dep, t1, t2];
+      const taskMap = getTaskMap(tasks);
+
+      _aggregateBlockingRelationships(tasks, taskMap);
+
+      expect(dep.tasksBeingBlocked).toEqual(expect.arrayContaining(['t1', 't2']));
+      expect(dep.tasksBeingBlocked.length).toBe(2);
+      expect(dep.allTasksBeingBlocked).toEqual(expect.arrayContaining(['t1', 't2']));
+      expect(dep.totalNumOfBlocks).toBe(2);
+    });
+  });
+
+  describe('transitive blocking relationships', () => {
+    it('should include all transitively blocked task IDs in allTasksBeingBlocked', () => {
       const t1 = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
       const t2 = new Task({ id: 't2', title: 'T2', type: TASK_TYPE.USER_STORY });
       const t3 = new Task({ id: 't3', title: 'T3', type: TASK_TYPE.USER_STORY });
 
-      t1.tasksBeingBlocked = ['t2'];
-      t2.tasksBeingBlocked = ['t3'];
-      t3.tasksBeingBlocked = [];
+      t2.dependsOnTasks = ['t1'];
+      t3.dependsOnTasks = ['t2'];
 
-      const taskMap = new Map([
-        ['t1', t1],
-        ['t2', t2],
-        ['t3', t3]
-      ]);
+      const tasks = [t1, t2, t3];
+      const taskMap = getTaskMap(tasks);
 
-      _agreggateAllTasksYouBlock(t1, taskMap);
+      _aggregateBlockingRelationships(tasks, taskMap);
 
-      expect(t1.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
+      expect(t1.allTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
+      expect(t2.allTasksBeingBlocked).toEqual(['t3']);
     });
 
-    it('should traverse and aggregate multiple levels of blocking relationships', () => {
+    it('should traverse and aggregate multiple levels of blocking', () => {
       const root = new Task({ id: 'root', title: 'Root', type: TASK_TYPE.USER_STORY });
       const l1 = new Task({ id: 'l1', title: 'L1', type: TASK_TYPE.USER_STORY });
       const l2a = new Task({ id: 'l2a', title: 'L2A', type: TASK_TYPE.USER_STORY });
       const l2b = new Task({ id: 'l2b', title: 'L2B', type: TASK_TYPE.USER_STORY });
 
-      root.tasksBeingBlocked = ['l1'];
-      l1.tasksBeingBlocked = ['l2a', 'l2b'];
-      l2a.tasksBeingBlocked = [];
-      l2b.tasksBeingBlocked = [];
+      l1.dependsOnTasks = ['root'];
+      l2a.dependsOnTasks = ['l1'];
+      l2b.dependsOnTasks = ['l1'];
 
-      const taskMap = new Map([
-        ['root', root],
-        ['l1', l1],
-        ['l2a', l2a],
-        ['l2b', l2b]
-      ]);
+      const tasks = [root, l1, l2a, l2b];
+      const taskMap = getTaskMap(tasks);
 
-      _agreggateAllTasksYouBlock(root, taskMap);
+      _aggregateBlockingRelationships(tasks, taskMap);
 
-      expect(root.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['l1', 'l2a', 'l2b']));
-      expect(root.cummulativeTasksBeingBlocked.length).toBe(3);
+      expect(root.allTasksBeingBlocked).toEqual(expect.arrayContaining(['l1', 'l2a', 'l2b']));
+      expect(root.allTasksBeingBlocked.length).toBe(3);
+      expect(root.totalNumOfBlocks).toBe(3);
     });
   });
 
-  describe('optimization', () => {
-    it('should return immediately if cummulativeTasksBeingBlocked already computed', () => {
+  describe('folder expansion in blocking relationships', () => {
+    it('should expand blocked Epic to include its children in allTasksBeingBlocked', () => {
+      const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
+      const epic = new Task({ id: 'epic', title: 'Epic', type: TASK_TYPE.EPIC });
+      const s1 = new Task({ id: 's1', title: 'Story 1', type: TASK_TYPE.USER_STORY });
+      const s2 = new Task({ id: 's2', title: 'Story 2', type: TASK_TYPE.USER_STORY });
+
+      epic.dependsOnTasks = ['blocker'];
+      s1.parents = ['epic'];
+      s2.parents = ['epic'];
+
+      const tasks = [blocker, epic, s1, s2];
+      const taskMap = getTaskMap(tasks);
+
+      // Need to populate children and allDescendantTasks first
+      epic.children = ['s1', 's2'];
+      epic.allDescendantTasks = ['s1', 's2'];
+
+      _aggregateBlockingRelationships(tasks, taskMap);
+
+      expect(blocker.allTasksBeingBlocked).toEqual(expect.arrayContaining(['epic', 's1', 's2']));
+      expect(blocker.totalNumOfBlocks).toBe(3);
+    });
+
+    it('should not expand non-folder tasks in allTasksBeingBlocked', () => {
+      const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
+      const story = new Task({ id: 'story', title: 'Story', type: TASK_TYPE.USER_STORY });
+
+      story.dependsOnTasks = ['blocker'];
+
+      const tasks = [blocker, story];
+      const taskMap = getTaskMap(tasks);
+
+      _aggregateBlockingRelationships(tasks, taskMap);
+
+      expect(blocker.allTasksBeingBlocked).toEqual(['story']);
+      expect(blocker.totalNumOfBlocks).toBe(1);
+    });
+
+    it('should expand transitively blocked folders', () => {
+      const t1 = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
+      const t2 = new Task({ id: 't2', title: 'T2', type: TASK_TYPE.USER_STORY });
+      const epic = new Task({ id: 'epic', title: 'Epic', type: TASK_TYPE.EPIC });
+      const s1 = new Task({ id: 's1', title: 'Story 1', type: TASK_TYPE.USER_STORY });
+      const s2 = new Task({ id: 's2', title: 'Story 2', type: TASK_TYPE.USER_STORY });
+
+      t2.dependsOnTasks = ['t1'];
+      epic.dependsOnTasks = ['t2'];
+      s1.parents = ['epic'];
+      s2.parents = ['epic'];
+
+      const tasks = [t1, t2, epic, s1, s2];
+      const taskMap = getTaskMap(tasks);
+
+      // Setup folder structure
+      epic.children = ['s1', 's2'];
+      epic.allDescendantTasks = ['s1', 's2'];
+
+      _aggregateBlockingRelationships(tasks, taskMap);
+
+      expect(t1.allTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 'epic', 's1', 's2']));
+      expect(t1.totalNumOfBlocks).toBe(4);
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should handle empty tasks array', () => {
+      const tasks = [];
+      const taskMap = new Map();
+
+      expect(() => {
+        _aggregateBlockingRelationships(tasks, taskMap);
+      }).not.toThrow();
+    });
+
+    it('should handle tasks with no dependencies', () => {
       const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
-      task.tasksBeingBlocked = ['b1'];
-      task.cummulativeTasksBeingBlocked = ['existing'];
+      const tasks = [task];
+      const taskMap = getTaskMap(tasks);
 
-      const taskMap = new Map([['t1', task]]);
+      _aggregateBlockingRelationships(tasks, taskMap);
 
-      _agreggateAllTasksYouBlock(task, taskMap);
-
-      expect(task.cummulativeTasksBeingBlocked).toEqual(['existing']);
+      expect(task.tasksBeingBlocked).toEqual([]);
+      expect(task.allTasksBeingBlocked).toEqual([]);
     });
-  });
-});
-
-describe('_agreggateTasksYouDirectlyBlock(tasks, taskMap) -> void (mutates tasks array and task objects)', () => {
-  it('should populate tasksBeingBlocked by inverting dependsOnTasks relationships', () => {
-    const dependency = new Task({ id: 'dep', title: 'Dependency', type: TASK_TYPE.USER_STORY });
-    const dependent = new Task({ id: 'dependent', title: 'Dependent', type: TASK_TYPE.USER_STORY });
-    dependent.dependsOnTasks = ['dep'];
-
-    const tasks = [dependency, dependent];
-    const taskMap = getTaskMap(tasks);
-
-    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
-
-    expect(dependency.tasksBeingBlocked).toEqual(['dependent']);
-  });
-
-  it('should complete successfully with empty tasks array', () => {
-    const tasks = [];
-    const taskMap = new Map();
-
-    expect(() => {
-      _agreggateTasksYouDirectlyBlock(tasks, taskMap);
-    }).not.toThrow();
-  });
-
-  it('should leave tasksBeingBlocked empty when no dependencies exist', () => {
-    const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
-    const tasks = [task];
-    const taskMap = getTaskMap(tasks);
-
-    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
-
-    expect(task.tasksBeingBlocked).toEqual([]);
-  });
-
-  it('should add dependent task ID to dependency.tasksBeingBlocked', () => {
-    const dep = new Task({ id: 'dep', title: 'Dep', type: TASK_TYPE.USER_STORY });
-    const t1 = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
-    const t2 = new Task({ id: 't2', title: 'T2', type: TASK_TYPE.USER_STORY });
-
-    t1.dependsOnTasks = ['dep'];
-    t2.dependsOnTasks = ['dep'];
-
-    const tasks = [dep, t1, t2];
-    const taskMap = getTaskMap(tasks);
-
-    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
-
-    expect(dep.tasksBeingBlocked).toEqual(expect.arrayContaining(['t1', 't2']));
-    expect(dep.tasksBeingBlocked.length).toBe(2);
-  });
-
-  it('should allow task to block multiple other tasks', () => {
-    const blocker = new Task({ id: 'blocker', title: 'Blocker', type: TASK_TYPE.USER_STORY });
-    const blocked1 = new Task({ id: 'b1', title: 'B1', type: TASK_TYPE.USER_STORY });
-    const blocked2 = new Task({ id: 'b2', title: 'B2', type: TASK_TYPE.USER_STORY });
-    const blocked3 = new Task({ id: 'b3', title: 'B3', type: TASK_TYPE.USER_STORY });
-
-    blocked1.dependsOnTasks = ['blocker'];
-    blocked2.dependsOnTasks = ['blocker'];
-    blocked3.dependsOnTasks = ['blocker'];
-
-    const tasks = [blocker, blocked1, blocked2, blocked3];
-    const taskMap = getTaskMap(tasks);
-
-    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
-
-    expect(blocker.tasksBeingBlocked.length).toBe(3);
-  });
-
-  it('should call _agreggateAllTasksYouBlock for each task', () => {
-    const t1 = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
-    const t2 = new Task({ id: 't2', title: 'T2', type: TASK_TYPE.USER_STORY });
-    t2.dependsOnTasks = ['t1'];
-
-    const tasks = [t1, t2];
-    const taskMap = getTaskMap(tasks);
-
-    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
-
-    expect(t1.cummulativeTasksBeingBlocked).toBeDefined();
-    expect(t2.cummulativeTasksBeingBlocked).toBeDefined();
-  });
-
-  it('should populate both tasksBeingBlocked and cummulativeTasksBeingBlocked', () => {
-    const t1 = new Task({ id: 't1', title: 'T1', type: TASK_TYPE.USER_STORY });
-    const t2 = new Task({ id: 't2', title: 'T2', type: TASK_TYPE.USER_STORY });
-    const t3 = new Task({ id: 't3', title: 'T3', type: TASK_TYPE.USER_STORY });
-
-    t2.dependsOnTasks = ['t1'];
-    t3.dependsOnTasks = ['t2'];
-
-    const tasks = [t1, t2, t3];
-    const taskMap = getTaskMap(tasks);
-
-    _agreggateTasksYouDirectlyBlock(tasks, taskMap);
-
-    expect(t1.tasksBeingBlocked).toEqual(['t2']);
-    expect(t1.cummulativeTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
-    expect(t2.tasksBeingBlocked).toEqual(['t3']);
-    expect(t2.cummulativeTasksBeingBlocked).toEqual(['t3']);
   });
 });

@@ -73,8 +73,6 @@ Check [input-template.json](./input-template.json) for the complete structure. T
 
 The following refactors and design tasks are planned:
 
-- refactor name: `cummulativeTasksBeingBlocked` -> all transitively blocked tasks
-- refactor name: `blocking` -> expanded blocking including folder children
 - refactor name: `numOfAssignedTasks` -> count of assigned tasks during simulation
 - refactor name: `remainingCapacity` -> available work capacity in current sprint
 - refactor name: `remainingRehiringDuration` -> time until replacement is hired/onboarded

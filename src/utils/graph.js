@@ -62,49 +62,72 @@ function _agreggateChildrenTasks(tasks, taskMap) {
   });
 }
 
-function _agreggateAllTasksYouBlock(task, taskMap) {
-  if (task.cummulativeTasksBeingBlocked) {
-    return;
-  }
-
-  task.cummulativeTasksBeingBlocked = new Set();
-
-  task.tasksBeingBlocked.forEach((childId) => {
-    task.cummulativeTasksBeingBlocked.add(childId);
-
-    const childTask = taskMap.get(childId);
-
-    _agreggateAllTasksYouBlock(childTask, taskMap);
-
-    childTask.cummulativeTasksBeingBlocked.forEach((taskId) => {
-      task.cummulativeTasksBeingBlocked.add(taskId);
-    });
-  });
-
-  task.cummulativeTasksBeingBlocked = _setToArray(task.cummulativeTasksBeingBlocked);
-}
-
-function _agreggateTasksYouDirectlyBlock(tasks, taskMap) {
-  const mapToTasksBeingBlocked = new Map();
+function _aggregateBlockingRelationships(tasks, taskMap) {
+  // Step 1: Build direct blocking relationships (task.tasksBeingBlocked)
+  const directBlockingMap = new Map();
 
   tasks.forEach((task) => {
-    mapToTasksBeingBlocked.set(task.id, new Set());
+    directBlockingMap.set(task.id, new Set());
   });
 
   tasks.forEach((task) => {
     task.dependsOnTasks.forEach((dependencyId) => {
-      mapToTasksBeingBlocked.get(dependencyId).add(task.id);
+      directBlockingMap.get(dependencyId).add(task.id);
     });
   });
 
   tasks.forEach((task) => {
-    task.tasksBeingBlocked = _setToArray(
-      mapToTasksBeingBlocked.get(task.id)
-    );
+    task.tasksBeingBlocked = _setToArray(directBlockingMap.get(task.id));
   });
 
+  // Step 2: Recursively compute transitive blocking (without folder expansion yet)
+  const transitiveBlockingMap = new Map();
+
+  function computeTransitiveBlocking(task) {
+    if (transitiveBlockingMap.has(task.id)) {
+      return transitiveBlockingMap.get(task.id);
+    }
+
+    const transitiveBlocked = new Set();
+
+    task.tasksBeingBlocked.forEach((blockedId) => {
+      transitiveBlocked.add(blockedId);
+
+      const blockedTask = taskMap.get(blockedId);
+      const blockedTransitive = computeTransitiveBlocking(blockedTask);
+
+      blockedTransitive.forEach((taskId) => {
+        transitiveBlocked.add(taskId);
+      });
+    });
+
+    transitiveBlockingMap.set(task.id, transitiveBlocked);
+    return transitiveBlocked;
+  }
+
   tasks.forEach((task) => {
-    _agreggateAllTasksYouBlock(task, taskMap);
+    computeTransitiveBlocking(task);
+  });
+
+  // Step 3: Expand folder-like tasks and set task.allTasksBeingBlocked
+  tasks.forEach((task) => {
+    const transitiveBlocked = transitiveBlockingMap.get(task.id);
+    const allBlocked = new Set();
+
+    transitiveBlocked.forEach((blockedId) => {
+      allBlocked.add(blockedId);
+
+      const blockedTask = taskMap.get(blockedId);
+
+      if (isFolderLikeTask(blockedTask.type)) {
+        blockedTask.allDescendantTasks.forEach((childId) => {
+          allBlocked.add(childId);
+        });
+      }
+    });
+
+    task.allTasksBeingBlocked = _setToArray(allBlocked);
+    task.totalNumOfBlocks = task.allTasksBeingBlocked.length;
   });
 }
 
@@ -187,32 +210,12 @@ function _computeTotalEstimateForTask(task, taskMap) {
   throw new Error(`Unexpected task type: ${task.type}`);
 }
 
-function _agreggateTotalNumOfBlocks(task, taskMap) {
-  const blocking = new Set();
-
-  task.cummulativeTasksBeingBlocked.forEach((idOfTaskBeingBlocked) => {
-    blocking.add(idOfTaskBeingBlocked);
-
-    const tasksBeingBlocked = taskMap.get(idOfTaskBeingBlocked);
-
-    if (isFolderLikeTask(tasksBeingBlocked.type)) {
-      tasksBeingBlocked.allDescendantTasks.forEach((childId) => {
-        blocking.add(childId);
-      });
-    }
-  });
-
-  task.blocking = _setToArray(blocking);
-  task.totalNumOfBlocks = task.blocking.length;
-}
-
 function agreggateInfosByExploringTasksGraph(tasks, taskMap) {
   _agreggateChildrenTasks(tasks, taskMap);
-  _agreggateTasksYouDirectlyBlock(tasks, taskMap);
+  _aggregateBlockingRelationships(tasks, taskMap);
 
   tasks.forEach((task) => {
     _computeTotalEstimateForTask(task, taskMap);
-    _agreggateTotalNumOfBlocks(task, taskMap);
   });
 }
 
@@ -222,9 +225,7 @@ export {
   getTaskMap,
   _agreggateAllChildTasks,
   _agreggateChildrenTasks,
-  _agreggateAllTasksYouBlock,
-  _agreggateTasksYouDirectlyBlock,
+  _aggregateBlockingRelationships,
   _computeTotalEstimateForTask,
-  _agreggateTotalNumOfBlocks,
   agreggateInfosByExploringTasksGraph,
 };

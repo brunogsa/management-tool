@@ -1,17 +1,17 @@
 import {
-  _aggregateBlockingRelationships,
+  _buildBlockingRelationships,
   getTaskMap
 } from '../../../../src/utils/graph.js';
 import { Task, TASK_TYPE } from '../../../../src/models.js';
 
-describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks)', () => {
+describe('_buildBlockingRelationships(tasks, taskMap) -> void (mutates tasks)', () => {
   describe('when task blocks nothing', () => {
     it('should set tasksBeingBlocked and allTasksBeingBlocked to empty arrays', () => {
       const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
       const tasks = [task];
       const taskMap = getTaskMap(tasks);
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(task.tasksBeingBlocked).toEqual([]);
       expect(task.allTasksBeingBlocked).toEqual([]);
@@ -28,7 +28,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       const tasks = [dependency, dependent];
       const taskMap = getTaskMap(tasks);
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(dependency.tasksBeingBlocked).toEqual(['dependent']);
       expect(dependency.allTasksBeingBlocked).toEqual(['dependent']);
@@ -45,7 +45,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       const tasks = [dep, t1, t2];
       const taskMap = getTaskMap(tasks);
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(dep.tasksBeingBlocked).toEqual(expect.arrayContaining(['t1', 't2']));
       expect(dep.tasksBeingBlocked.length).toBe(2);
@@ -66,7 +66,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       const tasks = [t1, t2, t3];
       const taskMap = getTaskMap(tasks);
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(t1.allTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
       expect(t2.allTasksBeingBlocked).toEqual(['t3']);
@@ -85,7 +85,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       const tasks = [root, l1, l2a, l2b];
       const taskMap = getTaskMap(tasks);
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(root.allTasksBeingBlocked).toEqual(expect.arrayContaining(['l1', 'l2a', 'l2b']));
       expect(root.allTasksBeingBlocked.length).toBe(3);
@@ -111,7 +111,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       epic.children = ['s1', 's2'];
       epic.allDescendantTasks = ['s1', 's2'];
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(blocker.allTasksBeingBlocked).toEqual(expect.arrayContaining(['epic', 's1', 's2']));
       expect(blocker.totalNumOfBlocks).toBe(3);
@@ -126,7 +126,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       const tasks = [blocker, story];
       const taskMap = getTaskMap(tasks);
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(blocker.allTasksBeingBlocked).toEqual(['story']);
       expect(blocker.totalNumOfBlocks).toBe(1);
@@ -151,7 +151,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       epic.children = ['s1', 's2'];
       epic.allDescendantTasks = ['s1', 's2'];
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(t1.allTasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 'epic', 's1', 's2']));
       expect(t1.totalNumOfBlocks).toBe(4);
@@ -180,7 +180,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       epic2.children = [];
       epic2.allDescendantTasks = [];
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(blocker.allTasksBeingBlocked).toEqual(expect.arrayContaining(['milestone', 'e1', 'e2', 's1']));
       expect(blocker.totalNumOfBlocks).toBe(4);
@@ -209,7 +209,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       epic.children = ['s1'];
       epic.allDescendantTasks = ['s1'];
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(blocker.allTasksBeingBlocked).toEqual(expect.arrayContaining(['project', 'm1', 'e1', 's1']));
       expect(blocker.totalNumOfBlocks).toBe(4);
@@ -237,7 +237,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       epic.children = [];
       epic.allDescendantTasks = ['e1', 'e2', 'e3'];
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       // Should include all three folders plus all their descendants
       expect(blocker.allTasksBeingBlocked).toEqual(expect.arrayContaining([
@@ -255,7 +255,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       const taskMap = new Map();
 
       expect(() => {
-        _aggregateBlockingRelationships(tasks, taskMap);
+        _buildBlockingRelationships(tasks, taskMap);
       }).not.toThrow();
     });
 
@@ -264,7 +264,7 @@ describe('_aggregateBlockingRelationships(tasks, taskMap) -> void (mutates tasks
       const tasks = [task];
       const taskMap = getTaskMap(tasks);
 
-      _aggregateBlockingRelationships(tasks, taskMap);
+      _buildBlockingRelationships(tasks, taskMap);
 
       expect(task.tasksBeingBlocked).toEqual([]);
       expect(task.allTasksBeingBlocked).toEqual([]);

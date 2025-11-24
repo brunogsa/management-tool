@@ -1,7 +1,13 @@
 import { readFileSync, writeFileSync } from 'fs';
 
 import inputValidator from '../utils/input-validator.js';
-import { deepClone, getTaskMap, agreggateInfosByExploringTasksGraph } from '../utils/graph.js';
+import {
+  deepClone,
+  getTaskMap,
+  attachAllDescendantsFromParentProps,
+  attachBlockedTasksFromDependsOnProps,
+  populateContainerEstimates,
+} from '../utils/graph.js';
 import { runMonteCarloSimulation } from '../utils/monte-carlo.js';
 import { generateGanttChart } from '../utils/mermaid-code-generator.js';
 import renderImage from '../utils/image-renderer.js';
@@ -16,10 +22,9 @@ async function monteCarlo(inputJsonFilepath, outputFilepath) {
     const data = deepClone(inputData);
     data.taskMap = getTaskMap(data.tasks);
 
-    agreggateInfosByExploringTasksGraph(
-      data.tasks,
-      data.taskMap,
-    );
+    attachAllDescendantsFromParentProps(data.tasks, data.taskMap);
+    attachBlockedTasksFromDependsOnProps(data.tasks, data.taskMap);
+    populateContainerEstimates(data.tasks, data.taskMap);
 
     const listOfSimulations = runMonteCarloSimulation(
       inputData.tasks,

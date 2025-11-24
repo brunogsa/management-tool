@@ -56,13 +56,15 @@ Task types form a hierarchy: Project > Milestone > Epic > user-story/spike/tech-
 
 ### Task Graph System (src/utils/graph.js)
 
-The graph utilities construct a bidirectional dependency graph from the task list:
+The graph utilities construct a bidirectional dependency graph from the task list by **mutating task objects in place** for performance (memory efficiency during large simulations).
 
-- **Parent-child relationships**: Built from `task.parents` array to create hierarchical project structure (Project contains Milestones, Milestones contain Epics, Epics contain stories/tasks)
-- **Blocking relationships**: Built from `task.dependsOnTasks` array to establish task execution order
-- **Aggregation**: Computes cumulative children, cumulative blocked tasks, total estimates for container tasks (Projects/Milestones/Epics), and total blocking count
+**Three public functions** populate runtime properties on tasks:
 
-The `agreggateInfosByExploringTasksGraph()` function traverses the graph to populate all runtime properties. This must be called after creating the task map and before using tasks for visualization or simulation.
+1. **`attachAllDescendantsFromParentProps(tasks, taskMap)`** - Mutates `task.children` and `task.allDescendantTasks` by inverting parent relationships
+2. **`attachBlockedTasksFromDependsOnProps(tasks, taskMap)`** - Mutates `task.tasksBeingBlocked`, `task.allTasksBeingBlocked`, and `task.totalNumOfBlocks` by computing blocking relationships
+3. **`populateContainerEstimates(tasks, taskMap)`** - Mutates `task.totalRealisticEstimate` for container tasks (Project/Milestone/Epic) by summing descendant estimates
+
+These functions use clear "attach/populate" verbs to indicate mutation. They must be called in order after creating the task map and before using tasks for visualization or simulation.
 
 ### Two-Phase Processing Pattern
 
@@ -71,7 +73,10 @@ Both commands (tasks-tree and monte-carlo) follow the same initialization patter
 1. Parse and validate input JSON via `inputValidator()`
 2. Deep clone the data structure (since graph operations mutate tasks)
 3. Build task map via `getTaskMap()`
-4. Aggregate graph relationships via `agreggateInfosByExploringTasksGraph()`
+4. Populate graph data by calling three mutation functions:
+   - `attachAllDescendantsFromParentProps(tasks, taskMap)`
+   - `attachBlockedTasksFromDependsOnProps(tasks, taskMap)`
+   - `populateContainerEstimates(tasks, taskMap)`
 
 ### Command Architecture
 
@@ -124,8 +129,10 @@ ES modules with ESLint (flat config) configured for:
 - Unused variables with `_` prefix are allowed (for private helpers and unused params)
 
 **Naming Conventions**:
-- **Private/helper functions**: Prefix with `_` (e.g., `_setToArray`, `_agreggateAllChildTasks`)
-- **Public exports**: No prefix (e.g., `getTaskMap`, `deepClone`, `agreggateInfosByExploringTasksGraph`)
+- **Private/helper functions**: Prefix with `_` (e.g., `_setToArray`, `_buildAllDescendantsFromChildren`)
+- **Public exports**: No prefix (e.g., `getTaskMap`, `deepClone`, `attachAllDescendantsFromParentProps`)
+- **Mutation-by-design functions**: Use verbs like `attach`, `link`, `populate`, `build`, `add`, `inject` to signal in-place mutation
+- **Pure functions**: Use verbs like `calculate`, `compute`, `get`, `find`, `create`, `generate` to signal they return new values
 
 **CRITICAL**: Never modify file formatting unless explicitly requested:
 - DO NOT change indentation style
@@ -205,13 +212,27 @@ Each step must be the smallest, testable, commit-able change.
 - **Preserve comments and formatting** unless explicitly asked to change them
 - **Follow existing patterns** throughout the codebase
 - **Clean code basics**: Small, pure, well-named functions; no magic numbers; prefer enums/constants; validate inputs; handle errors
-- **Prefix private helpers with `_`**: Internal/private functions should start with underscore (e.g., `_setToArray`, `_agreggateChildrenTasks`)
+- **Prefix private helpers with `_`**: Internal/private functions should start with underscore (e.g., `_setToArray`, `_buildChildrenFromParentProps`)
 - **Functions with ≥2 params** - Use a named-param object
 - **Loops & conditions**: Avoid negatives, name complex predicates, prefer `for-of` when index unused
 - **Extract magic values** - Define reusable constants for all magic strings/numbers, preferably using enums
 - **Remove unused code** - Delete code that is no longer used along with its tests
 - **Comment non-obvious code** - Ensure everything is understandable to a mid-level developer
 - **Prefer tests and logs over comments** - Document behavior through tests and logs whenever possible
+
+### Mutation Patterns
+
+**When to mutate**: Use mutation for performance-critical code (e.g., Monte Carlo simulations with millions of iterations) where immutability would create excessive memory allocations.
+
+**How to signal mutation clearly**:
+1. **Use mutation verbs** in function names: `attach*`, `populate*`, `link*`, `build*`, `add*`, `inject*`
+2. **Apply SRP** - Each mutating function should modify a small, well-defined set of related properties
+3. **Deep clone before mutating** - Commands use `deepClone()` to preserve original input data before graph operations
+
+**Examples**:
+- `attachAllDescendantsFromParentProps(tasks, taskMap)` - Name clearly indicates it attaches data to existing tasks
+- `populateContainerEstimates(tasks, taskMap)` - Name clearly indicates it populates properties on existing tasks
+- Contrast with pure functions: `getTaskMap(tasks)` returns a new Map without modifying input
 
 ### Error Handling
 

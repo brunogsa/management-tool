@@ -1,47 +1,52 @@
 import {
-  agreggateInfosByExploringTasksGraph,
+  attachAllDescendantsFromParentProps,
+  attachBlockedTasksFromDependsOnProps,
+  populateContainerEstimates,
   getTaskMap
 } from '../../../../src/utils/graph.js';
 import { Task, TASK_TYPE } from '../../../../src/models.js';
 
-describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates tasks)', () => {
-  it('should call agreggateChildrenTasks with tasks and taskMap', () => {
+describe('Graph integration: attachAllDescendantsFromParentProps + attachBlockedTasksFromDependsOnProps + populateContainerEstimates', () => {
+  it('should populate children when attachAllDescendantsFromParentProps is called', () => {
     const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
     const tasks = [task];
     const taskMap = getTaskMap(tasks);
 
-    agreggateInfosByExploringTasksGraph(tasks, taskMap);
+    attachAllDescendantsFromParentProps(tasks, taskMap);
 
     expect(task.children).toBeDefined();
   });
 
-  it('should call agreggateTasksYouDirectlyBlock with tasks and taskMap', () => {
+  it('should populate tasksBeingBlocked when attachBlockedTasksFromDependsOnProps is called', () => {
     const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
     const tasks = [task];
     const taskMap = getTaskMap(tasks);
 
-    agreggateInfosByExploringTasksGraph(tasks, taskMap);
+    attachAllDescendantsFromParentProps(tasks, taskMap);
+    attachBlockedTasksFromDependsOnProps(tasks, taskMap);
 
     expect(task.tasksBeingBlocked).toBeDefined();
   });
 
-  it('should call computeTotalEstimateForTask for each task', () => {
+  it('should populate totalRealisticEstimate when populateContainerEstimates is called', () => {
     const epic = new Task({ id: 'epic', title: 'Epic', type: TASK_TYPE.EPIC });
     epic.mostProbableEstimateInRange = 5;
     const tasks = [epic];
     const taskMap = getTaskMap(tasks);
 
-    agreggateInfosByExploringTasksGraph(tasks, taskMap);
+    attachAllDescendantsFromParentProps(tasks, taskMap);
+    populateContainerEstimates(tasks, taskMap);
 
     expect(epic.totalRealisticEstimate).toBeDefined();
   });
 
-  it('should call aggregateBlockingRelationships for each task', () => {
+  it('should populate allTasksBeingBlocked and totalNumOfBlocks when attachBlockedTasksFromDependsOnProps is called', () => {
     const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
     const tasks = [task];
     const taskMap = getTaskMap(tasks);
 
-    agreggateInfosByExploringTasksGraph(tasks, taskMap);
+    attachAllDescendantsFromParentProps(tasks, taskMap);
+    attachBlockedTasksFromDependsOnProps(tasks, taskMap);
 
     expect(task.allTasksBeingBlocked).toBeDefined();
     expect(task.totalNumOfBlocks).toBeDefined();
@@ -63,7 +68,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
     const tasks = [project, epic, story];
     const taskMap = getTaskMap(tasks);
 
-    agreggateInfosByExploringTasksGraph(tasks, taskMap);
+    attachAllDescendantsFromParentProps(tasks, taskMap);
+    attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+    populateContainerEstimates(tasks, taskMap);
 
     // Verify all aggregations happened
     expect(project.children).toEqual(['epic']);
@@ -78,7 +85,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       const taskMap = new Map();
 
       expect(() => {
-        agreggateInfosByExploringTasksGraph(tasks, taskMap);
+        attachAllDescendantsFromParentProps(tasks, taskMap);
+        attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+        populateContainerEstimates(tasks, taskMap);
       }).not.toThrow();
     });
   });
@@ -99,7 +108,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       const tasks = [t1, t2, t3];
       const taskMap = getTaskMap(tasks);
 
-      agreggateInfosByExploringTasksGraph(tasks, taskMap);
+      attachAllDescendantsFromParentProps(tasks, taskMap);
+      attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+      populateContainerEstimates(tasks, taskMap);
 
       // Children
       expect(t1.children).toEqual([]);
@@ -135,7 +146,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       const tasks = [project, milestone, epic, story];
       const taskMap = getTaskMap(tasks);
 
-      agreggateInfosByExploringTasksGraph(tasks, taskMap);
+      attachAllDescendantsFromParentProps(tasks, taskMap);
+      attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+      populateContainerEstimates(tasks, taskMap);
 
       // Verify hierarchical structure
       expect(project.children).toEqual(['milestone']);
@@ -168,7 +181,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       const tasks = [project, m1, m2, e1, e2];
       const taskMap = getTaskMap(tasks);
 
-      agreggateInfosByExploringTasksGraph(tasks, taskMap);
+      attachAllDescendantsFromParentProps(tasks, taskMap);
+      attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+      populateContainerEstimates(tasks, taskMap);
 
       expect(project.children).toEqual(expect.arrayContaining(['m1', 'm2']));
       expect(project.allDescendantTasks).toEqual(expect.arrayContaining(['m1', 'm2', 'e1', 'e2']));
@@ -189,7 +204,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       const tasks = [t1, t2, t3, t4];
       const taskMap = getTaskMap(tasks);
 
-      agreggateInfosByExploringTasksGraph(tasks, taskMap);
+      attachAllDescendantsFromParentProps(tasks, taskMap);
+      attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+      populateContainerEstimates(tasks, taskMap);
 
       expect(t1.tasksBeingBlocked).toEqual(expect.arrayContaining(['t2', 't3']));
       expect(t1.allTasksBeingBlocked.length).toBeGreaterThan(0);
@@ -212,7 +229,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       const tasks = [project, milestone, epic];
       const taskMap = getTaskMap(tasks);
 
-      agreggateInfosByExploringTasksGraph(tasks, taskMap);
+      attachAllDescendantsFromParentProps(tasks, taskMap);
+      attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+      populateContainerEstimates(tasks, taskMap);
 
       expect(epic.totalRealisticEstimate).toBe(3);
       expect(milestone.totalRealisticEstimate).toBe(5); // 2 + 3
@@ -231,7 +250,9 @@ describe('agreggateInfosByExploringTasksGraph(tasks, taskMap) -> void (mutates t
       const tasks = [epic, s1, s2];
       const taskMap = getTaskMap(tasks);
 
-      agreggateInfosByExploringTasksGraph(tasks, taskMap);
+      attachAllDescendantsFromParentProps(tasks, taskMap);
+      attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+      populateContainerEstimates(tasks, taskMap);
 
       expect(s1.allTasksBeingBlocked).toEqual(['s2']);
       expect(s1.totalNumOfBlocks).toBe(1);

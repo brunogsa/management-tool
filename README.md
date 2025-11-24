@@ -130,11 +130,6 @@ These types represent executable work items that cannot contain children:
 
 The following refactors and design tasks are planned:
 
-- refactor, should probably have a better name and signature: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `computeTotalEstimateForTask`, `agreggateInfosByExploringTasksGraph`
-
-- refactor, could probably improve SRP: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `computeTotalEstimateForTask`, `agreggateInfosByExploringTasksGraph`
-
-- refactor: no function should mutate params -> refactor one at a time
 - should we have on `parameters.json` an array `skills`? Or should we extract those from the array `personnel`?
 
 The Monte Carlo simulation is partially implemented with the following steps planned:

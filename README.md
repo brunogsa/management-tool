@@ -73,16 +73,11 @@ Check [input-template.json](./input-template.json) for the complete structure. T
 
 The following refactors and design tasks are planned:
 
-- refactor name: `numOfAssignedTasks` -> count of assigned tasks during simulation
-- refactor name: `remainingCapacity` -> available work capacity in current sprint
-- refactor name: `remainingRehiringDuration` -> time until replacement is hired/onboarded
-
 - refactor, should probably have a better name and signature: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `computeTotalEstimateForTask`, `agreggateInfosByExploringTasksGraph`
 
 - refactor, could probably improve SRP: `agreggateAllChildTasks`, `agreggateChildrenTasks`, `computeTotalEstimateForTask`, `agreggateInfosByExploringTasksGraph`
 
 - refactor: no function should mutate params -> refactor one at a time
-- refactor: `requiredSkills[].level` -> `minLevel`
 - document: `tasks[].type`
 - should we have on `parameters.json` an array `skills`? Or should we extract those from the array `personnel`?
 

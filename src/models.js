@@ -123,13 +123,13 @@ class Task {
 };
 
 class Skill {
-  constructor({ name, level }) {
-    if (!Object.values(LEVEL).includes(level)) {
-      throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
+  constructor({ name, minLevel }) {
+    if (!Object.values(LEVEL).includes(minLevel)) {
+      throw new Error(`Unknown minLevel "${minLevel}". Must be one of: ${JSON.stringify(LEVEL)}`);
     }
 
     this.name = name;
-    this.level = level;
+    this.minLevel = minLevel;
   }
 }
 
@@ -171,8 +171,8 @@ class Person {
 
     // Undefined | Number
     this.numOfAssignedTasks = undefined;
-    this.remainingCapacity = undefined;
-    this.remainingRehiringDuration = undefined;
+    this.availableCapacity = undefined;
+    this.remainingReplacementDuration = undefined;
   }
 };
 

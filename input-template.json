@@ -65,7 +65,7 @@
       "requiredSkills": [
         {
           "name": "backend",
-          "level": "senior"
+          "minLevel": "senior"
         }
       ]
     }
@@ -83,7 +83,7 @@
       "skills": [
         {
           "name": "backend",
-          "level": "senior"
+          "minLevel": "senior"
         }
       ],
 

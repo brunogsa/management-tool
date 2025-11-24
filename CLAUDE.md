@@ -49,7 +49,7 @@ The system uses several key data models:
 
 - **Task**: Central entity with properties for estimates, dependencies, parents, required skills, and runtime aggregated data (children, blocking relationships, remaining duration). Contains methods `accountWork()` and `isDone()` for simulation state management.
 - **Person**: Represents team members with skills, experience levels, hiring/onboarding status, and vacation schedules. Has runtime properties for capacity and assignment tracking.
-- **Skill**: Links tasks to personnel via name and level (intern/junior/mid/senior/specialist).
+- **Skill**: Links tasks to personnel via name and minLevel (intern/junior/mid/senior/specialist).
 - **Vacation**: Date ranges when personnel are unavailable.
 
 Task types form a hierarchy: Project > Milestone > Epic > user-story/spike/tech-task/tech-debt/improvement/bug

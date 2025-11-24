@@ -36,11 +36,11 @@ const definitions = {
     type: 'object',
     required: [
       'name',
-      'level',
+      'minLevel',
     ],
     properties: {
       name: { type: 'string' },
-      level: {
+      minLevel: {
         $ref: '#/$defs/Level',
       }
     }

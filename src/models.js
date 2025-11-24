@@ -39,7 +39,7 @@ const TASK_TYPE = {
   BUG: 'bug',
 };
 
-const isFolderLikeTask = (taskType) => {
+const isContainerTask = (taskType) => {
   return [
     TASK_TYPE.PROJECT,
     TASK_TYPE.MILESTONE,
@@ -221,7 +221,7 @@ export {
   TIME_UNITS,
 
   TASK_TYPE,
-  isFolderLikeTask,
+  isContainerTask,
 
   Task,
   Skill,

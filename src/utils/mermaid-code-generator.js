@@ -1,4 +1,4 @@
-import { isFolderLikeTask, TASK_TYPE } from '../models.js';
+import { isContainerTask, TASK_TYPE } from '../models.js';
 
 const IDENT = '  ';
 const TWO_IDENT = IDENT + IDENT;
@@ -29,7 +29,7 @@ function _getNodeDeclaration(task, timeAndEstimateUnit) {
   node += TWO_IDENT + task.title + LINE_BREAK;
   node += TWO_IDENT + `__${task.type}__` + LINE_BREAK + LINE_BREAK;
 
-  if (isFolderLikeTask(task.type)) {
+  if (isContainerTask(task.type)) {
     node += TWO_IDENT + `Total: ${task.totalRealisticEstimate} ${timeAndEstimateUnit}` + LINE_BREAK + LINE_BREAK;
 
   } else {

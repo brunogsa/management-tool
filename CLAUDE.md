@@ -60,7 +60,7 @@ The graph utilities construct a bidirectional dependency graph from the task lis
 
 - **Parent-child relationships**: Built from `task.parents` array to create hierarchical project structure (Project contains Milestones, Milestones contain Epics, Epics contain stories/tasks)
 - **Blocking relationships**: Built from `task.dependsOnTasks` array to establish task execution order
-- **Aggregation**: Computes cumulative children, cumulative blocked tasks, total estimates for folder-like tasks (Projects/Milestones/Epics), and total blocking count
+- **Aggregation**: Computes cumulative children, cumulative blocked tasks, total estimates for container tasks (Projects/Milestones/Epics), and total blocking count
 
 The `agreggateInfosByExploringTasksGraph()` function traverses the graph to populate all runtime properties. This must be called after creating the task map and before using tasks for visualization or simulation.
 

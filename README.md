@@ -63,7 +63,7 @@ Check [input-template.json](./input-template.json) for the complete structure. T
 
 The system supports **9 task types** organized in a 3-level hierarchy:
 
-#### Folder-like Types (Containers)
+#### Container Types
 
 These types organize work and aggregate estimates from their children:
 
@@ -106,7 +106,7 @@ These types represent executable work items that cannot contain children:
 
 #### Key Behaviors
 
-**Folder-like tasks** (project/milestone/epic):
+**Container tasks** (project/milestone/epic):
 - Automatically aggregate time estimates from all descendants
 - Display total estimates in diagrams
 - When blocked, all their children are also blocked

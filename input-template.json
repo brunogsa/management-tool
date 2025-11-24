@@ -15,13 +15,13 @@
       "junior": 4,
       "mid": 3,
       "senior": 2,
-      "specialist": 2
+      "specialist": 1
     },
 
     "velocityByLevel": {
       "intern": 0.6,
       "junior": 0.9,
-      "mid": 1,
+      "mid": 1.1,
       "senior": 1,
       "specialist": 1
     },
@@ -37,7 +37,7 @@
     "sickRate": 0.000389,
     "turnOverRate": 0.00301,
 
-    "startDate": "YYYY-MM-DD",
+    "startDate": "2025-01-15",
     "taskSplitRate": 0.15,
 
     "numOfMonteCarloIterations": 1000000
@@ -45,27 +45,274 @@
 
   "tasks": [
     {
-      "id": "id",
-      "title": "title",
-      "type": "type",
+      "id": "proj-ecommerce",
+      "title": "E-Commerce Platform Modernization",
+      "type": "project",
+      "fibonacciEstimate": 0,
+      "mostProbableEstimateInRange": 0,
+      "parents": [],
+      "dependsOnTasks": [],
+      "requiredSkills": []
+    },
 
+    {
+      "id": "milestone-mvp",
+      "title": "MVP Release",
+      "type": "milestone",
+      "fibonacciEstimate": 0,
+      "mostProbableEstimateInRange": 0,
+      "parents": ["proj-ecommerce"],
+      "dependsOnTasks": [],
+      "requiredSkills": []
+    },
+
+    {
+      "id": "milestone-production",
+      "title": "Production Launch",
+      "type": "milestone",
+      "fibonacciEstimate": 0,
+      "mostProbableEstimateInRange": 0,
+      "parents": ["proj-ecommerce"],
+      "dependsOnTasks": ["milestone-mvp"],
+      "requiredSkills": []
+    },
+
+    {
+      "id": "epic-auth",
+      "title": "User Authentication System",
+      "type": "epic",
+      "fibonacciEstimate": 0,
+      "mostProbableEstimateInRange": 0,
+      "parents": ["milestone-mvp"],
+      "dependsOnTasks": [],
+      "requiredSkills": []
+    },
+
+    {
+      "id": "epic-catalog",
+      "title": "Product Catalog",
+      "type": "epic",
+      "fibonacciEstimate": 0,
+      "mostProbableEstimateInRange": 0,
+      "parents": ["milestone-mvp"],
+      "dependsOnTasks": ["epic-auth"],
+      "requiredSkills": []
+    },
+
+    {
+      "id": "epic-payment",
+      "title": "Payment Integration",
+      "type": "epic",
+      "fibonacciEstimate": 0,
+      "mostProbableEstimateInRange": 0,
+      "parents": ["milestone-production"],
+      "dependsOnTasks": [],
+      "requiredSkills": []
+    },
+
+    {
+      "id": "epic-admin",
+      "title": "Admin Dashboard",
+      "type": "epic",
+      "fibonacciEstimate": 0,
+      "mostProbableEstimateInRange": 0,
+      "parents": ["milestone-production"],
+      "dependsOnTasks": [],
+      "requiredSkills": []
+    },
+
+    {
+      "id": "story-login",
+      "title": "User can log in with email and password",
+      "type": "user-story",
       "fibonacciEstimate": 5,
       "mostProbableEstimateInRange": 4,
+      "parents": ["epic-auth"],
+      "dependsOnTasks": ["task-auth-infra"],
+      "requiredSkills": [
+        {
+          "name": "backend",
+          "minLevel": "mid"
+        },
+        {
+          "name": "frontend",
+          "minLevel": "junior"
+        }
+      ]
+    },
 
-      "onlyStartableAt": "YYYY-MM-DD",
-
-      "parents": [
-        "id"
-      ],
-
-      "dependsOnTasks": [
-        "id"
-      ],
-
+    {
+      "id": "spike-oauth",
+      "title": "Research OAuth 2.0 providers (Google, GitHub, Auth0)",
+      "type": "spike",
+      "fibonacciEstimate": 3,
+      "mostProbableEstimateInRange": 2,
+      "parents": ["epic-auth"],
+      "dependsOnTasks": [],
       "requiredSkills": [
         {
           "name": "backend",
           "minLevel": "senior"
+        }
+      ]
+    },
+
+    {
+      "id": "task-auth-infra",
+      "title": "Set up authentication infrastructure (JWT, session management)",
+      "type": "tech-task",
+      "fibonacciEstimate": 8,
+      "mostProbableEstimateInRange": 6,
+      "parents": ["epic-auth"],
+      "dependsOnTasks": ["spike-oauth"],
+      "requiredSkills": [
+        {
+          "name": "backend",
+          "minLevel": "senior"
+        }
+      ]
+    },
+
+    {
+      "id": "story-browse-products",
+      "title": "User can browse and search product catalog",
+      "type": "user-story",
+      "fibonacciEstimate": 8,
+      "mostProbableEstimateInRange": 7,
+      "parents": ["epic-catalog"],
+      "dependsOnTasks": [],
+      "requiredSkills": [
+        {
+          "name": "backend",
+          "minLevel": "mid"
+        },
+        {
+          "name": "frontend",
+          "minLevel": "mid"
+        }
+      ]
+    },
+
+    {
+      "id": "bug-search-pagination",
+      "title": "Fix search results pagination overflow",
+      "type": "bug",
+      "fibonacciEstimate": 2,
+      "mostProbableEstimateInRange": 1,
+      "parents": ["epic-catalog"],
+      "dependsOnTasks": ["story-browse-products"],
+      "requiredSkills": [
+        {
+          "name": "frontend",
+          "minLevel": "junior"
+        }
+      ]
+    },
+
+    {
+      "id": "improvement-product-images",
+      "title": "Optimize product image loading with lazy loading and WebP",
+      "type": "improvement",
+      "fibonacciEstimate": 5,
+      "mostProbableEstimateInRange": 3,
+      "parents": ["epic-catalog"],
+      "dependsOnTasks": ["story-browse-products"],
+      "requiredSkills": [
+        {
+          "name": "frontend",
+          "minLevel": "mid"
+        }
+      ]
+    },
+
+    {
+      "id": "story-checkout",
+      "title": "User can complete checkout and payment",
+      "type": "user-story",
+      "fibonacciEstimate": 13,
+      "mostProbableEstimateInRange": 10,
+      "parents": ["epic-payment"],
+      "dependsOnTasks": ["task-payment-gateway"],
+      "requiredSkills": [
+        {
+          "name": "backend",
+          "minLevel": "senior"
+        },
+        {
+          "name": "frontend",
+          "minLevel": "mid"
+        }
+      ]
+    },
+
+    {
+      "id": "task-payment-gateway",
+      "title": "Configure Stripe payment gateway integration",
+      "type": "tech-task",
+      "fibonacciEstimate": 8,
+      "mostProbableEstimateInRange": 6,
+      "parents": ["epic-payment"],
+      "dependsOnTasks": [],
+      "requiredSkills": [
+        {
+          "name": "backend",
+          "minLevel": "senior"
+        }
+      ]
+    },
+
+    {
+      "id": "debt-payment-refactor",
+      "title": "Refactor legacy payment processing code",
+      "type": "tech-debt",
+      "fibonacciEstimate": 8,
+      "mostProbableEstimateInRange": 7,
+      "parents": ["epic-payment"],
+      "dependsOnTasks": ["task-payment-gateway"],
+      "requiredSkills": [
+        {
+          "name": "backend",
+          "minLevel": "senior"
+        }
+      ]
+    },
+
+    {
+      "id": "story-admin-products",
+      "title": "Admin can manage products (CRUD operations)",
+      "type": "user-story",
+      "fibonacciEstimate": 8,
+      "mostProbableEstimateInRange": 6,
+      "parents": ["epic-admin"],
+      "dependsOnTasks": [],
+      "requiredSkills": [
+        {
+          "name": "backend",
+          "minLevel": "mid"
+        },
+        {
+          "name": "frontend",
+          "minLevel": "mid"
+        }
+      ]
+    },
+
+    {
+      "id": "improvement-analytics",
+      "title": "Add sales analytics dashboard with charts",
+      "type": "improvement",
+      "fibonacciEstimate": 8,
+      "mostProbableEstimateInRange": 7,
+      "parents": ["epic-admin"],
+      "dependsOnTasks": ["story-admin-products"],
+      "requiredSkills": [
+        {
+          "name": "frontend",
+          "minLevel": "senior"
+        },
+        {
+          "name": "backend",
+          "minLevel": "mid"
         }
       ]
     }
@@ -73,26 +320,59 @@
 
   "personnel": [
     {
-      "id": "id",
-      "name": "name",
+      "id": "dev-alice",
+      "name": "Alice Johnson",
       "level": "senior",
-
       "hired": true,
       "onboarded": true,
-
       "skills": [
         {
           "name": "backend",
           "minLevel": "senior"
+        },
+        {
+          "name": "frontend",
+          "minLevel": "mid"
         }
       ],
-
       "vacationsAt": [
         {
-          "from": "YYYY-MM-DD",
-          "to": "YYYY-MM-DD"
+          "from": "2025-03-10",
+          "to": "2025-03-17"
         }
       ]
+    },
+    {
+      "id": "dev-bob",
+      "name": "Bob Smith",
+      "level": "mid",
+      "hired": true,
+      "onboarded": true,
+      "skills": [
+        {
+          "name": "frontend",
+          "minLevel": "mid"
+        },
+        {
+          "name": "backend",
+          "minLevel": "junior"
+        }
+      ],
+      "vacationsAt": []
+    },
+    {
+      "id": "dev-carol",
+      "name": "Carol Martinez",
+      "level": "junior",
+      "hired": true,
+      "onboarded": false,
+      "skills": [
+        {
+          "name": "frontend",
+          "minLevel": "junior"
+        }
+      ],
+      "vacationsAt": []
     }
   ]
 }

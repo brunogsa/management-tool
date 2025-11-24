@@ -7,7 +7,7 @@ import renderImage from '../utils/image-renderer.js';
 
 import {
   TASK_TYPE,
-  isFolderLikeTask,
+  isContainerTask,
   Task,
 } from '../models.js';
 
@@ -25,7 +25,7 @@ function _highlightOrphanTasks(tasks, taskMap) {
 
   if (hasAtLeast1Epic) {
     const woEpics = tasks.filter((task) => {
-      return !isFolderLikeTask(task.type);
+      return !isContainerTask(task.type);
 
     }).filter((basicTask) => {
       const hasNoEpic = !basicTask.parents

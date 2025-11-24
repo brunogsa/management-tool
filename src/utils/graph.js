@@ -1,4 +1,4 @@
-import { TASK_TYPE, isFolderLikeTask } from '../models.js';
+import { TASK_TYPE, isContainerTask } from '../models.js';
 
 const deepClone = (obj) => JSON.parse(
   JSON.stringify(obj),
@@ -119,7 +119,7 @@ function _aggregateBlockingRelationships(tasks, taskMap) {
 
       const blockedTask = taskMap.get(blockedId);
 
-      if (isFolderLikeTask(blockedTask.type)) {
+      if (isContainerTask(blockedTask.type)) {
         blockedTask.allDescendantTasks.forEach((childId) => {
           allBlocked.add(childId);
         });
@@ -132,7 +132,7 @@ function _aggregateBlockingRelationships(tasks, taskMap) {
 }
 
 function _computeTotalEstimateForTask(task, taskMap) {
-  if (!isFolderLikeTask(task.type)) {
+  if (!isContainerTask(task.type)) {
     return;
   }
 

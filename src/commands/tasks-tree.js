@@ -1,7 +1,13 @@
 import { readFileSync, writeFileSync } from 'fs';
 
 import inputValidator from '../utils/input-validator.js';
-import { deepClone, getTaskMap, agreggateInfosByExploringTasksGraph } from '../utils/graph.js';
+import {
+  deepClone,
+  getTaskMap,
+  attachAllDescendantsFromParentProps,
+  attachBlockedTasksFromDependsOnProps,
+  populateContainerEstimates,
+} from '../utils/graph.js';
 import { generateTasksTreeFlowchart } from '../utils/mermaid-code-generator.js';
 import renderImage from '../utils/image-renderer.js';
 
@@ -129,10 +135,9 @@ async function tasksTree(inputJsonFilepath, outputFolderFilepath) {
       data.taskMap,
     );
 
-    agreggateInfosByExploringTasksGraph(
-      data.tasks,
-      data.taskMap,
-    );
+    attachAllDescendantsFromParentProps(data.tasks, data.taskMap);
+    attachBlockedTasksFromDependsOnProps(data.tasks, data.taskMap);
+    populateContainerEstimates(data.tasks, data.taskMap);
 
     const mermaidCode = generateTasksTreeFlowchart(
       data.tasks,

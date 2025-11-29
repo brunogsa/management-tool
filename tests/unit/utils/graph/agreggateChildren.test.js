@@ -1,18 +1,18 @@
 import {
-  _agreggateAllChildTasks,
-  _agreggateChildrenTasks,
+  _buildAllDescendantsFromChildren,
+  _buildChildrenFromParentProps,
   getTaskMap
 } from '../../../../src/utils/graph.js';
 import { Task, TASK_TYPE } from '../../../../src/models.js';
 
-describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescendantTasks)', () => {
+describe('_buildAllDescendantsFromChildren(task, taskMap) -> void (mutates task.allDescendantTasks)', () => {
   describe('with no children', () => {
     it('should set allDescendantTasks to empty array', () => {
       const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
       task.children = [];
       const taskMap = new Map([[task.id, task]]);
 
-      _agreggateAllChildTasks(task, taskMap);
+      _buildAllDescendantsFromChildren(task, taskMap);
 
       expect(task.allDescendantTasks).toEqual([]);
     });
@@ -34,7 +34,7 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescen
         ['c2', child2]
       ]);
 
-      _agreggateAllChildTasks(parent, taskMap);
+      _buildAllDescendantsFromChildren(parent, taskMap);
 
       expect(parent.allDescendantTasks).toEqual(expect.arrayContaining(['c1', 'c2']));
       expect(parent.allDescendantTasks.length).toBe(2);
@@ -49,7 +49,7 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescen
 
       const taskMap = new Map([['t1', task], ['c1', child]]);
 
-      _agreggateAllChildTasks(task, taskMap);
+      _buildAllDescendantsFromChildren(task, taskMap);
 
       expect(Array.isArray(task.allDescendantTasks)).toBe(true);
     });
@@ -71,7 +71,7 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescen
         ['c', child]
       ]);
 
-      _agreggateAllChildTasks(grandparent, taskMap);
+      _buildAllDescendantsFromChildren(grandparent, taskMap);
 
       expect(grandparent.allDescendantTasks).toEqual(expect.arrayContaining(['p', 'c']));
     });
@@ -97,7 +97,7 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescen
         ['l3', l3]
       ]);
 
-      _agreggateAllChildTasks(root, taskMap);
+      _buildAllDescendantsFromChildren(root, taskMap);
 
       expect(root.allDescendantTasks).toEqual(expect.arrayContaining(['l1', 'l2a', 'l2b', 'l3']));
       expect(root.allDescendantTasks.length).toBe(4);
@@ -117,7 +117,7 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescen
       tasks[3].children = [];
 
       const taskMap = getTaskMap(tasks);
-      _agreggateAllChildTasks(tasks[0], taskMap);
+      _buildAllDescendantsFromChildren(tasks[0], taskMap);
 
       expect(tasks[0].allDescendantTasks.length).toBe(3);
     });
@@ -131,7 +131,7 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescen
 
       const taskMap = new Map([['t1', task]]);
 
-      _agreggateAllChildTasks(task, taskMap);
+      _buildAllDescendantsFromChildren(task, taskMap);
 
       expect(task.allDescendantTasks).toEqual(['existing']);
     });
@@ -145,10 +145,10 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescen
 
       const taskMap = new Map([['t1', task], ['c1', child]]);
 
-      _agreggateAllChildTasks(task, taskMap);
+      _buildAllDescendantsFromChildren(task, taskMap);
       const firstResult = task.allDescendantTasks;
 
-      _agreggateAllChildTasks(task, taskMap);
+      _buildAllDescendantsFromChildren(task, taskMap);
       const secondResult = task.allDescendantTasks;
 
       expect(firstResult).toBe(secondResult);
@@ -163,13 +163,13 @@ describe('_agreggateAllChildTasks(task, taskMap) -> void (mutates task.allDescen
       const taskMap = new Map([['t1', task]]);
 
       expect(() => {
-        _agreggateAllChildTasks(task, taskMap);
+        _buildAllDescendantsFromChildren(task, taskMap);
       }).toThrow();
     });
   });
 });
 
-describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array and task objects)', () => {
+describe('_buildChildrenFromParentProps(tasks, taskMap) -> void (mutates tasks array and task objects)', () => {
   it('should populate children array by inverting parent relationships', () => {
     const parent = new Task({ id: 'parent', title: 'Parent', type: TASK_TYPE.EPIC });
     const child = new Task({ id: 'child', title: 'Child', type: TASK_TYPE.USER_STORY });
@@ -178,7 +178,7 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     const tasks = [parent, child];
     const taskMap = getTaskMap(tasks);
 
-    _agreggateChildrenTasks(tasks, taskMap);
+    _buildChildrenFromParentProps(tasks, taskMap);
 
     expect(parent.children).toEqual(['child']);
   });
@@ -188,7 +188,7 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     const taskMap = new Map();
 
     expect(() => {
-      _agreggateChildrenTasks(tasks, taskMap);
+      _buildChildrenFromParentProps(tasks, taskMap);
     }).not.toThrow();
   });
 
@@ -197,7 +197,7 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     const tasks = [task];
     const taskMap = getTaskMap(tasks);
 
-    _agreggateChildrenTasks(tasks, taskMap);
+    _buildChildrenFromParentProps(tasks, taskMap);
 
     expect(task.children).toEqual([]);
   });
@@ -213,7 +213,7 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     const tasks = [epic, story1, story2];
     const taskMap = getTaskMap(tasks);
 
-    _agreggateChildrenTasks(tasks, taskMap);
+    _buildChildrenFromParentProps(tasks, taskMap);
 
     expect(epic.children).toEqual(expect.arrayContaining(['s1', 's2']));
     expect(epic.children.length).toBe(2);
@@ -229,7 +229,7 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     const tasks = [parent1, parent2, child];
     const taskMap = getTaskMap(tasks);
 
-    _agreggateChildrenTasks(tasks, taskMap);
+    _buildChildrenFromParentProps(tasks, taskMap);
 
     expect(parent1.children).toContain('child');
     expect(parent2.children).toContain('child');
@@ -245,13 +245,13 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     const tasks = [p1, p2, shared];
     const taskMap = getTaskMap(tasks);
 
-    _agreggateChildrenTasks(tasks, taskMap);
+    _buildChildrenFromParentProps(tasks, taskMap);
 
     expect(p1.children).toEqual(['shared']);
     expect(p2.children).toEqual(['shared']);
   });
 
-  it('should call _agreggateAllChildTasks for each task', () => {
+  it('should call _buildAllDescendantsFromChildren for each task', () => {
     const parent = new Task({ id: 'parent', title: 'Parent', type: TASK_TYPE.EPIC });
     const child = new Task({ id: 'child', title: 'Child', type: TASK_TYPE.USER_STORY });
     child.parents = ['parent'];
@@ -259,7 +259,7 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     const tasks = [parent, child];
     const taskMap = getTaskMap(tasks);
 
-    _agreggateChildrenTasks(tasks, taskMap);
+    _buildChildrenFromParentProps(tasks, taskMap);
 
     expect(parent.allDescendantTasks).toBeDefined();
     expect(child.allDescendantTasks).toBeDefined();
@@ -276,7 +276,7 @@ describe('_agreggateChildrenTasks(tasks, taskMap) -> void (mutates tasks array a
     const tasks = [milestone, epic, story];
     const taskMap = getTaskMap(tasks);
 
-    _agreggateChildrenTasks(tasks, taskMap);
+    _buildChildrenFromParentProps(tasks, taskMap);
 
     expect(milestone.children).toEqual(['epic']);
     expect(milestone.allDescendantTasks).toEqual(expect.arrayContaining(['epic', 'story']));

@@ -16,7 +16,7 @@ function getTaskMap(tasks) {
   );
 }
 
-function _agreggateAllChildTasks(task, taskMap) {
+function _buildAllDescendantsFromChildren(task, taskMap) {
   if (task.allDescendantTasks) {
     return;
   }
@@ -28,7 +28,7 @@ function _agreggateAllChildTasks(task, taskMap) {
 
     const childTask = taskMap.get(childId);
 
-    _agreggateAllChildTasks(childTask, taskMap);
+    _buildAllDescendantsFromChildren(childTask, taskMap);
 
     childTask.allDescendantTasks.forEach((taskId) => {
       task.allDescendantTasks.add(taskId);
@@ -38,7 +38,7 @@ function _agreggateAllChildTasks(task, taskMap) {
   task.allDescendantTasks = _setToArray(task.allDescendantTasks);
 }
 
-function _agreggateChildrenTasks(tasks, taskMap) {
+function _buildChildrenFromParentProps(tasks, taskMap) {
   const mapToChildrenTasks = new Map();
 
   tasks.forEach((task) => {
@@ -58,11 +58,11 @@ function _agreggateChildrenTasks(tasks, taskMap) {
   });
 
   tasks.forEach((task) => {
-    _agreggateAllChildTasks(task, taskMap);
+    _buildAllDescendantsFromChildren(task, taskMap);
   });
 }
 
-function _aggregateBlockingRelationships(tasks, taskMap) {
+function _buildBlockingRelationships(tasks, taskMap) {
   // Step 1: Build direct blocking relationships (task.tasksBeingBlocked)
   const directBlockingMap = new Map();
 
@@ -210,10 +210,15 @@ function _computeTotalEstimateForTask(task, taskMap) {
   throw new Error(`Unexpected task type: ${task.type}`);
 }
 
-function agreggateInfosByExploringTasksGraph(tasks, taskMap) {
-  _agreggateChildrenTasks(tasks, taskMap);
-  _aggregateBlockingRelationships(tasks, taskMap);
+function attachAllDescendantsFromParentProps(tasks, taskMap) {
+  _buildChildrenFromParentProps(tasks, taskMap);
+}
 
+function attachBlockedTasksFromDependsOnProps(tasks, taskMap) {
+  _buildBlockingRelationships(tasks, taskMap);
+}
+
+function populateContainerEstimates(tasks, taskMap) {
   tasks.forEach((task) => {
     _computeTotalEstimateForTask(task, taskMap);
   });
@@ -223,9 +228,11 @@ export {
   deepClone,
   _setToArray,
   getTaskMap,
-  _agreggateAllChildTasks,
-  _agreggateChildrenTasks,
-  _aggregateBlockingRelationships,
+  _buildAllDescendantsFromChildren,
+  _buildChildrenFromParentProps,
+  _buildBlockingRelationships,
   _computeTotalEstimateForTask,
-  agreggateInfosByExploringTasksGraph,
+  attachAllDescendantsFromParentProps,
+  attachBlockedTasksFromDependsOnProps,
+  populateContainerEstimates,
 };

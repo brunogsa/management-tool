@@ -18,6 +18,9 @@ import {
   generateSickLeaveDuration,
   isPersonHired,
   filterHiredPersonnel,
+  isHiringComplete,
+  completeHiring,
+  calculateHireCompletionWeek,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE } from '../../../src/models.js';
 
@@ -1227,6 +1230,83 @@ describe('Monte Carlo Simulation', () => {
         const available = filterHiredPersonnel({ personnel });
 
         expect(available).toHaveLength(0);
+      });
+    });
+
+    describe('Step 19: Hiring delay simulation', () => {
+      it('should return false when hiring not yet complete', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        person.hiringStartWeek = 0;
+        const currentWeek = 1;
+        const hiringTimeInWeeks = 3;
+
+        const result = isHiringComplete({ person, currentWeek, hiringTimeInWeeks });
+
+        expect(result).toBe(false);
+      });
+
+      it('should return true when hiring time has passed', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        person.hiringStartWeek = 0;
+        const currentWeek = 3;
+        const hiringTimeInWeeks = 3;
+
+        const result = isHiringComplete({ person, currentWeek, hiringTimeInWeeks });
+
+        expect(result).toBe(true);
+      });
+
+      it('should return true when current week exceeds hiring time', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        person.hiringStartWeek = 0;
+        const currentWeek = 5;
+        const hiringTimeInWeeks = 3;
+
+        const result = isHiringComplete({ person, currentWeek, hiringTimeInWeeks });
+
+        expect(result).toBe(true);
+      });
+
+      it('should handle person with no hiring start week', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        const currentWeek = 5;
+        const hiringTimeInWeeks = 3;
+
+        const result = isHiringComplete({ person, currentWeek, hiringTimeInWeeks });
+
+        expect(result).toBe(false);
+      });
+
+      it('should mark person as hired when hiring complete', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        person.hiringStartWeek = 0;
+        const currentWeek = 3;
+        const hiringTimeInWeeks = 3;
+
+        completeHiring({ person, currentWeek, hiringTimeInWeeks });
+
+        expect(person.hired).toBe(true);
+      });
+
+      it('should not mark person as hired when hiring not complete', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        person.hiringStartWeek = 0;
+        const currentWeek = 1;
+        const hiringTimeInWeeks = 3;
+
+        completeHiring({ person, currentWeek, hiringTimeInWeeks });
+
+        expect(person.hired).toBe(false);
+      });
+
+      it('should calculate hire completion week correctly', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        person.hiringStartWeek = 2;
+        const hiringTimeInWeeks = 3;
+
+        const completionWeek = calculateHireCompletionWeek({ person, hiringTimeInWeeks });
+
+        expect(completionWeek).toBe(5); // 2 + 3
       });
     });
   });

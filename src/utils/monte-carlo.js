@@ -304,6 +304,23 @@ function filterHiredPersonnel({ personnel }) {
   return personnel.filter(person => isPersonHired({ person }));
 }
 
+function isHiringComplete({ person, currentWeek, hiringTimeInWeeks }) {
+  if (person.hiringStartWeek === undefined) {
+    return false;
+  }
+  return currentWeek >= person.hiringStartWeek + hiringTimeInWeeks;
+}
+
+function completeHiring({ person, currentWeek, hiringTimeInWeeks }) {
+  if (isHiringComplete({ person, currentWeek, hiringTimeInWeeks })) {
+    person.hired = true;
+  }
+}
+
+function calculateHireCompletionWeek({ person, hiringTimeInWeeks }) {
+  return person.hiringStartWeek + hiringTimeInWeeks;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -404,6 +421,9 @@ export {
   generateSickLeaveDuration,
   isPersonHired,
   filterHiredPersonnel,
+  isHiringComplete,
+  completeHiring,
+  calculateHireCompletionWeek,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

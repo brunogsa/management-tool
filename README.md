@@ -132,13 +132,159 @@ The following refactors and design tasks are planned:
 
 - should we have on `parameters.json` an array `skills`? Or should we extract those from the array `personnel`?
 
-The Monte Carlo simulation is partially implemented with the following steps planned:
+The Monte Carlo simulation is partially implemented with the following baby steps planned:
 
-1. Simple simulation: Basic skill requirements and velocity factors  
-2. Task split rate handling  
-3. Rework modeling  
-4. Vacation scheduling  
-5. Sick leave simulation  
-6. Hiring and onboarding processes  
-7. Turnover and re-hiring/onboarding  
-8. Task start date constraints  
+#### Phase 1: Simple Simulation Foundation
+
+1. **Time tracking setup**
+   - Initialize simulation state with current sprint/week counter
+   - Add test for sprint increment logic
+
+2. **Task startability detection**
+   - Implement function to find tasks with all dependencies completed
+   - Handle tasks with no dependencies (immediate start)
+   - Add test for dependency-blocked vs startable tasks
+
+3. **Basic skill matching**
+   - Match personnel skills to task required skills
+   - Check minimum skill level requirements
+   - Add test for skill-qualified vs unqualified personnel
+
+4. **Simple work assignment**
+   - Assign available capacity from qualified personnel to tasks
+   - Use velocity factor from personnel skill level (intern: 0.5, junior: 0.75, mid: 1.0, senior: 1.25, specialist: 1.5)
+   - Add test for capacity allocation
+
+5. **Task progress tracking**
+   - Implement `Task.accountWork(amount)` to reduce remaining duration
+   - Implement `Task.isDone()` to check completion status
+   - Add test for work accounting and completion detection
+
+6. **Single iteration execution**
+   - Run simulation loop: increment time → find startable → assign work → repeat until all tasks done
+   - Track completion date for each task
+   - Add test for single iteration returning completion dates
+
+7. **Multiple iterations aggregation**
+   - Run N iterations with realistic estimate sampling (use most probable estimate as baseline)
+   - Collect all completion dates across iterations
+   - Add test for N iterations producing N completion dates
+
+8. **Percentile calculation**
+   - Calculate 50th, 75th, 90th, 95th, 99th percentiles from completion dates
+   - Add test for percentile calculation from sample data
+
+#### Phase 2: Task Split Rate
+
+9. **Split probability detection**
+   - During task start, check if split occurs (15% default rate from globalParams.taskSplitRate)
+   - Add test for split probability triggering
+
+10. **Split task creation**
+    - Create new task with same properties as original
+    - Divide remaining estimate between original and new task
+    - Add test for task duplication with estimate division
+
+11. **Split dependency update**
+    - New task blocks everything original task was blocking
+    - Original task now blocks the new task
+    - Add test for dependency graph update after split
+
+#### Phase 3: Rework Modeling
+
+12. **Rework probability by skill level**
+    - On task completion, check if rework needed (intern: 21%, junior: 13%, mid: 8%, senior: 5%, specialist: 3%)
+    - Use lowest skill level among assigned personnel
+    - Add test for rework probability based on skill level
+
+13. **Rework task generation**
+    - Create rework task with estimate = original estimate × 0.5
+    - Link rework task to block what original was blocking
+    - Add test for rework task creation and linking
+
+#### Phase 4: Vacation Scheduling
+
+14. **Vacation data loading**
+    - Read vacation date ranges from personnel.vacations array
+    - Parse start/end dates
+    - Add test for vacation data parsing
+
+15. **Capacity reduction during vacation**
+    - Check if current date falls within any vacation period
+    - Set personnel capacity to 0 during vacation
+    - Add test for zero capacity during vacation dates
+
+#### Phase 5: Sick Leave Simulation
+
+16. **Weekly sick probability**
+    - At start of each week, check 0.0389% probability per person (from globalParams.weeklyProbabilityOfGettingSick)
+    - Add test for sick leave triggering
+
+17. **Sick leave duration**
+    - Random duration 1-5 days
+    - Set capacity to 0 during sick period
+    - Add test for capacity reduction during sick leave
+
+#### Phase 6: Hiring and Onboarding
+
+18. **Hiring status tracking**
+    - Skip personnel where `isHired: false`
+    - Track hiring delay based on level (from globalParams.hiringTimeInWeeks)
+    - Add test for excluding unhired personnel
+
+19. **Hiring delay simulation**
+    - Mark person as hired after hiring delay passes
+    - Add test for hire date calculation
+
+20. **Onboarding status tracking**
+    - Skip personnel where `isOnboarded: false` (even if hired)
+    - Track onboarding duration based on level (from globalParams.rampUpTimeInWeeks)
+    - Add test for excluding non-onboarded personnel
+
+21. **Onboarding capacity reduction**
+    - During onboarding, reduce capacity by 50%
+    - Add test for reduced capacity calculation
+
+#### Phase 7: Turnover and Replacement
+
+22. **Weekly quit probability**
+    - At start of each week, check 0.301% probability per person (from globalParams.weeklyProbabilityOfQuitting)
+    - Add test for turnover triggering
+
+23. **Personnel departure**
+    - Mark person as departed
+    - Remove from available capacity
+    - Track unassigned work
+    - Add test for capacity removal and work reassignment
+
+24. **Replacement hiring**
+    - Create new person with same skills and level
+    - Apply hiring delay
+    - Add test for replacement person creation
+
+25. **Replacement onboarding**
+    - Apply onboarding duration after hiring completes
+    - Apply onboarding capacity reduction
+    - Add test for replacement onboarding cycle
+
+#### Phase 8: Task Start Date Constraints
+
+26. **Start date constraint loading**
+    - Read task.onlyStartableAt date field
+    - Parse constraint dates
+    - Add test for constraint data parsing
+
+27. **Date-based task blocking**
+    - Exclude tasks from startable set if current date < onlyStartableAt
+    - Add test for date-blocked vs date-available tasks
+
+#### Phase 9: Output Generation
+
+28. **Gantt chart data preparation**
+    - For each percentile (50th, 75th, 90th, 95th, 99th), extract task start/end dates from that iteration
+    - Add test for data extraction
+
+29. **Gantt chart rendering**
+    - Generate Mermaid Gantt chart code for each percentile
+    - Render to image files
+    - Add test for Gantt output file creation  

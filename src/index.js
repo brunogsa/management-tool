@@ -9,6 +9,7 @@ program
 program
   .command('tasks-tree <input-json-filepath> <output-folder-filepath>')
   .description('Generate a tasks dependency flowchart')
+  .option('-w, --watch', 'Watch for changes and auto-regenerate')
   .action(tasksTree);
 
 program

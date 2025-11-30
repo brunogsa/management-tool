@@ -4,10 +4,25 @@ import { jest } from '@jest/globals';
 const mockReadFileSync = jest.fn();
 const mockWriteFileSync = jest.fn();
 const mockRenderImage = jest.fn();
+const mockWatch = jest.fn();
+const mockExpress = jest.fn();
+const mockOpen = jest.fn();
 
 jest.unstable_mockModule('fs', () => ({
   readFileSync: mockReadFileSync,
   writeFileSync: mockWriteFileSync,
+}));
+
+jest.unstable_mockModule('chokidar', () => ({
+  watch: mockWatch,
+}));
+
+jest.unstable_mockModule('express', () => ({
+  default: mockExpress,
+}));
+
+jest.unstable_mockModule('open', () => ({
+  default: mockOpen,
 }));
 
 jest.unstable_mockModule('../../../../src/utils/image-renderer.js', () => ({

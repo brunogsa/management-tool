@@ -24,6 +24,7 @@ import {
   isPersonOnboarded,
   filterOnboardedPersonnel,
   isOnboardingComplete,
+  applyOnboardingCapacityReduction,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE } from '../../../src/models.js';
 
@@ -1382,6 +1383,83 @@ describe('Monte Carlo Simulation', () => {
         const result = isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks });
 
         expect(result).toBe(true);
+      });
+    });
+
+    describe('Step 21: Capacity during onboarding', () => {
+      it('should reduce capacity by 50% when person is onboarding', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        person.onboardingStartWeek = 0;
+        person.availableCapacity = 1;
+        const currentWeek = 1;
+        const rampUpTimeInWeeks = 3;
+
+        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+
+        expect(person.availableCapacity).toBe(0.5);
+      });
+
+      it('should not modify capacity when person is fully onboarded', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.availableCapacity = 1;
+        const currentWeek = 5;
+        const rampUpTimeInWeeks = 3;
+
+        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+
+        expect(person.availableCapacity).toBe(1);
+      });
+
+      it('should handle multiple personnel with different onboarding status', () => {
+        const onboarding = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        onboarding.onboardingStartWeek = 0;
+        onboarding.availableCapacity = 1;
+
+        const onboarded = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        onboarded.availableCapacity = 1;
+
+        const currentWeek = 1;
+        const rampUpTimeInWeeks = 3;
+
+        applyOnboardingCapacityReduction({ personnel: [onboarding, onboarded], currentWeek, rampUpTimeInWeeks });
+
+        expect(onboarding.availableCapacity).toBe(0.5); // Reduced
+        expect(onboarded.availableCapacity).toBe(1); // Not reduced
+      });
+
+      it('should not reduce capacity when onboarding complete', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        person.onboardingStartWeek = 0;
+        person.availableCapacity = 1;
+        const currentWeek = 3; // Onboarding complete
+        const rampUpTimeInWeeks = 3;
+
+        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+
+        expect(person.availableCapacity).toBe(1); // No reduction
+      });
+
+      it('should handle person with no onboarding start week', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        person.availableCapacity = 1;
+        const currentWeek = 5;
+        const rampUpTimeInWeeks = 3;
+
+        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+
+        expect(person.availableCapacity).toBe(1); // No reduction
+      });
+
+      it('should reduce from current capacity value', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        person.onboardingStartWeek = 0;
+        person.availableCapacity = 0.8; // Already reduced capacity
+        const currentWeek = 1;
+        const rampUpTimeInWeeks = 3;
+
+        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+
+        expect(person.availableCapacity).toBe(0.4); // 0.8 * 0.5
       });
     });
   });

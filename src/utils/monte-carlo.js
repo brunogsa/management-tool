@@ -336,6 +336,15 @@ function isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks }) {
   return currentWeek >= person.onboardingStartWeek + rampUpTimeInWeeks;
 }
 
+function applyOnboardingCapacityReduction({ personnel, currentWeek, rampUpTimeInWeeks }) {
+  for (const person of personnel) {
+    // Only reduce capacity if person is onboarding (not fully onboarded yet)
+    if (!isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks }) && person.onboardingStartWeek !== undefined) {
+      person.availableCapacity = person.availableCapacity * 0.5;
+    }
+  }
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -442,6 +451,7 @@ export {
   isPersonOnboarded,
   filterOnboardedPersonnel,
   isOnboardingComplete,
+  applyOnboardingCapacityReduction,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

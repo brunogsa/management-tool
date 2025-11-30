@@ -51,6 +51,42 @@ npm start monte-carlo <json-input-filepath> <output-filepath>
 - `json-input-filepath`: Path to the JSON file containing comprehensive project data.
 - `output-filepath`: Directory path where the probabilistic distributions and Gantt charts will be saved.
 
+**Simulation Features:**
+
+The Monte Carlo simulation models realistic project dynamics through multiple iterations to generate probabilistic completion forecasts:
+
+- **Core Simulation**
+  - Multi-iteration execution with percentile analysis (50th, 75th, 90th, 95th, 99th)
+  - Time tracking with sprint/week progression
+  - Task dependency and startability detection
+  - Skill-based personnel matching with minimum level requirements
+  - Velocity factors by skill level (intern: 0.5, junior: 0.75, mid: 1.0, senior: 1.25, specialist: 1.5)
+
+- **Task Dynamics**
+  - Task splits: 15% probability of tasks splitting during execution (configurable)
+  - Rework: Skill-based probability (intern: 21%, junior: 13%, mid: 8%, senior: 5%, specialist: 3%)
+
+- **Personnel Availability**
+  - Vacation scheduling: Zero capacity during scheduled vacation periods
+  - Sick leave: 0.0389% weekly probability per person, random 1-5 day duration
+
+- **Hiring & Onboarding**
+  - Hiring delays: Level-based hiring time before personnel become available
+  - Onboarding periods: 50% capacity reduction during ramp-up time
+  - Future hire modeling: Personnel can start as unhired and join during project execution
+
+- **Turnover & Replacement**
+  - Personnel departure: 0.301% weekly quit probability
+  - Automatic replacement: New personnel created with same skills and level
+  - Full replacement cycle: Hiring delay + onboarding period for replacements
+
+- **Constraints**
+  - Task start dates: Optional `onlyStartableAt` field to delay task availability
+
+- **Output**
+  - Gantt charts: Mermaid diagrams for each percentile showing task start/end dates
+  - Completion date distributions: Statistical analysis across all iterations
+
 ## JSON Input Format
 
 Check [input-template.json](./input-template.json) for the complete structure. The input file includes:

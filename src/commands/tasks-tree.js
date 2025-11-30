@@ -200,7 +200,7 @@ async function _startWatchMode(inputJsonFilepath, outputFolderFilepath) {
     console.log('Watching for changes... (Press Ctrl+C to stop)\n');
   });
 
-  const watcher = watch([inputJsonFilepath, 'src/**/*.js'], {
+  const watcher = watch([inputJsonFilepath, `${process.cwd()}/src/**/*.js`], {
     ignoreInitial: true,
     awaitWriteFinish: {
       stabilityThreshold: 300,

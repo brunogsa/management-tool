@@ -381,6 +381,18 @@ function createReplacement({ person, currentWeek, personnel }) {
   return personnel ? { replacement, personnel } : replacement;
 }
 
+function startOnboarding({ person, currentWeek, hiringTimeInWeeks }) {
+  if (isHiringComplete({ person, currentWeek, hiringTimeInWeeks })) {
+    person.onboardingStartWeek = currentWeek;
+  }
+}
+
+function completeOnboarding({ person, currentWeek, rampUpTimeInWeeks }) {
+  if (isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks })) {
+    person.onboarded = true;
+  }
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -492,6 +504,8 @@ export {
   markPersonAsDeparted,
   filterActivePersonnel,
   createReplacement,
+  startOnboarding,
+  completeOnboarding,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

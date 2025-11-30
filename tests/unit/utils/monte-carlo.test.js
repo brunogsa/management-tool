@@ -29,6 +29,8 @@ import {
   markPersonAsDeparted,
   filterActivePersonnel,
   createReplacement,
+  startOnboarding,
+  completeOnboarding,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE } from '../../../src/models.js';
 
@@ -1662,6 +1664,62 @@ describe('Monte Carlo Simulation', () => {
 
         expect(result.personnel).toHaveLength(2);
         expect(result.personnel).toContain(result.replacement);
+      });
+    });
+
+    describe('Step 25: Replacement onboarding', () => {
+      it('should start onboarding when hiring completes', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        person.hiringStartWeek = 0;
+        const currentWeek = 3;
+        const hiringTimeInWeeks = 3;
+
+        startOnboarding({ person, currentWeek, hiringTimeInWeeks });
+
+        expect(person.onboardingStartWeek).toBe(3);
+      });
+
+      it('should not start onboarding if hiring not complete', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        person.hiringStartWeek = 0;
+        const currentWeek = 1;
+        const hiringTimeInWeeks = 3;
+
+        startOnboarding({ person, currentWeek, hiringTimeInWeeks });
+
+        expect(person.onboardingStartWeek).toBeUndefined();
+      });
+
+      it('should mark as onboarded when onboarding completes', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        person.onboardingStartWeek = 0;
+        const currentWeek = 4;
+        const rampUpTimeInWeeks = 4;
+
+        completeOnboarding({ person, currentWeek, rampUpTimeInWeeks });
+
+        expect(person.onboarded).toBe(true);
+      });
+
+      it('should not mark as onboarded when onboarding not complete', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        person.onboardingStartWeek = 0;
+        const currentWeek = 2;
+        const rampUpTimeInWeeks = 4;
+
+        completeOnboarding({ person, currentWeek, rampUpTimeInWeeks });
+
+        expect(person.onboarded).toBe(false);
+      });
+
+      it('should handle person with no onboarding start week', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        const currentWeek = 5;
+        const rampUpTimeInWeeks = 4;
+
+        completeOnboarding({ person, currentWeek, rampUpTimeInWeeks });
+
+        expect(person.onboarded).toBe(false);
       });
     });
   });

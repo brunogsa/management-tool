@@ -55,7 +55,7 @@ function _getChildEdge(taskId, dependencyId) {
 let numOfDepEdges = 0;
 function _getDependencyEdge(taskId, dependencyId) {
   numOfDepEdges++;
-  return `${taskId} ==> ${dependencyId}`;
+  return `${taskId} ==>|blocks| ${dependencyId}`;
 }
 
 function _styleDepsAsRed(diagram) {

@@ -16,16 +16,16 @@ describe('Edge Generation Functions', () => {
   });
 
   describe('_getDependencyEdge(taskId, dependencyId) -> string', () => {
-    it('should generate dependency edge with "==>" connector', () => {
+    it('should generate dependency edge with "==>" connector and "blocks" label', () => {
       const result = _getDependencyEdge('us1', 'us2');
 
-      expect(result).toBe('us1 ==> us2');
+      expect(result).toBe('us1 ==>|blocks| us2');
     });
 
     it('should generate correct edge for different task IDs', () => {
       const result = _getDependencyEdge('task-a', 'task-b');
 
-      expect(result).toBe('task-a ==> task-b');
+      expect(result).toBe('task-a ==>|blocks| task-b');
     });
   });
 });

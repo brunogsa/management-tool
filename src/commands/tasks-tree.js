@@ -3,157 +3,15 @@ import { watch } from 'chokidar';
 import express from 'express';
 import open from 'open';
 
-import inputValidator from '../utils/input-validator.js';
-import {
-  deepClone,
-  getTaskMap,
-  attachAllDescendantsFromParentProps,
-  attachBlockedTasksFromDependsOnProps,
-  populateContainerEstimates,
-} from '../utils/graph.js';
-import { generateTasksTreeFlowchart } from '../utils/mermaid-code-generator.js';
+import tasksTreeUseCase from '../use-cases/tasks-tree.js';
 import renderImage from '../utils/image-renderer.js';
 
-import {
-  TASK_TYPE,
-  isContainerTask,
-  Task,
-} from '../models.js';
 
-
-function _highlightOrphanTasks(tasks, taskMap) {
-  const hasAtLeast1Epic = !!tasks.find((task) => {
-    return task.type === TASK_TYPE.EPIC;
-  });
-  const hasAtLeast1Milestone = !!tasks.find((task) => {
-    return task.type === TASK_TYPE.MILESTONE;
-  });
-  const hasAtLeast1Project = !!tasks.find((task) => {
-    return task.type === TASK_TYPE.PROJECT;
-  });
-
-  if (hasAtLeast1Epic) {
-    const woEpics = tasks.filter((task) => {
-      return !isContainerTask(task.type);
-
-    }).filter((basicTask) => {
-      const hasNoEpic = !basicTask.parents
-        .map((taskId) => taskMap.get(taskId))
-        .find((dependency) => {
-          return dependency.type === TASK_TYPE.EPIC;
-        });
-
-      return hasNoEpic;
-    });
-
-    if (woEpics.length > 0) {
-      const noEpicTask = new Task({
-        id: 'wo-epic',
-        title: 'w/o Epic',
-        type: TASK_TYPE.EPIC
-      });
-
-      tasks.push(noEpicTask);
-      taskMap.set(noEpicTask.id, noEpicTask);
-
-      woEpics.forEach((basicTask) => {
-        basicTask.parents.push(noEpicTask.id);
-      });
-    }
-  }
-
-  if (hasAtLeast1Milestone) {
-    const woMilestones = tasks.filter((task) => {
-      return task.type === TASK_TYPE.EPIC;
-
-    }).filter((epicTask) => {
-      const hasNoMilestone = !epicTask.parents
-        .map((taskId) => taskMap.get(taskId))
-        .find((dependency) => {
-          return dependency.type === TASK_TYPE.MILESTONE;
-        });
-
-      return hasNoMilestone;
-    });
-
-    if (woMilestones.length > 0) {
-      const noMilestoneTask = new Task({
-        id: 'wo-milestone',
-        title: 'w/o Milestone',
-        type: TASK_TYPE.MILESTONE
-      });
-
-      tasks.push(noMilestoneTask);
-      taskMap.set(noMilestoneTask.id, noMilestoneTask);
-
-      woMilestones.forEach((epicTask) => {
-        epicTask.parents.push(noMilestoneTask.id);
-      });
-    }
-  }
-
-  if (hasAtLeast1Project) {
-    const woProjects = tasks.filter((task) => {
-      return task.type === TASK_TYPE.MILESTONE;
-
-    }).filter((milestoneTask) => {
-      const hasNoProject = !milestoneTask.parents
-        .map((taskId) => taskMap.get(taskId))
-        .find((dependency) => {
-          return dependency.type === TASK_TYPE.PROJECT;
-        });
-
-      return hasNoProject;
-    });
-
-    if (woProjects.length > 0) {
-      const noProjectTask = new Task({
-        id: 'wo-project',
-        title: 'w/o Project',
-        type: TASK_TYPE.PROJECT
-      });
-
-      tasks.push(noProjectTask);
-      taskMap.set(noProjectTask.id, noProjectTask);
-
-      woProjects.forEach((milestoneTask) => {
-        milestoneTask.parents.push(noProjectTask.id);
-      });
-    }
-  }
-}
-
-async function _generateImage(inputJsonFilepath, outputFolderFilepath) {
-  const inputData = JSON.parse(
-    readFileSync(inputJsonFilepath, 'utf8')
-  );
-  inputValidator(inputData);
-
-  const data = deepClone(inputData);
-  data.taskMap = getTaskMap(data.tasks);
-
-  _highlightOrphanTasks(
-    data.tasks,
-    data.taskMap,
-  );
-
-  attachAllDescendantsFromParentProps(data.tasks, data.taskMap);
-  attachBlockedTasksFromDependsOnProps(data.tasks, data.taskMap);
-  populateContainerEstimates(data.tasks, data.taskMap);
-
-  const mermaidCode = generateTasksTreeFlowchart(
-    data.tasks,
-    data.taskMap,
-    data.globalParams.timeAndEstimateUnit,
-  );
-
+async function _generateDiagramOutputFiles(mermaidCode, outputFolderFilepath) {
   const diagramName = 'tasks-tree';
-
   const diagramFilepath = `${outputFolderFilepath}/${diagramName}.mmd`;
-  writeFileSync(
-    diagramFilepath,
-    mermaidCode
-  );
+
+  writeFileSync(diagramFilepath, mermaidCode);
 
   await renderImage(
     diagramFilepath,
@@ -162,9 +20,16 @@ async function _generateImage(inputJsonFilepath, outputFolderFilepath) {
   );
 }
 
-async function tasksTree(inputJsonFilepath, outputFolderFilepath, options) {
+async function tasksTreeCommand(inputJsonFilepath, outputFolderFilepath, options) {
   try {
-    await _generateImage(inputJsonFilepath, outputFolderFilepath);
+    const inputData = JSON.parse(
+      readFileSync(inputJsonFilepath, 'utf8')
+    );
+
+    const mermaidCode = tasksTreeUseCase(inputData);
+
+    await _generateDiagramOutputFiles(mermaidCode, outputFolderFilepath);
+
     console.log('Tasks dependency flowchart generated successfully!');
 
     if (options?.watch) {
@@ -289,7 +154,13 @@ async function _startWatchMode(inputJsonFilepath, outputFolderFilepath) {
   watcher.on('change', async (filepath) => {
     try {
       console.log(`Regenerating due to changes in ${filepath}...`);
-      await _generateImage(inputJsonFilepath, outputFolderFilepath);
+
+      const inputData = JSON.parse(
+        readFileSync(inputJsonFilepath, 'utf8')
+      );
+      const mermaidCode = tasksTreeUseCase(inputData);
+      await _generateDiagramOutputFiles(mermaidCode, outputFolderFilepath);
+
       console.log('Regenerated successfully!');
 
       clients.forEach(client => {
@@ -308,5 +179,4 @@ async function _startWatchMode(inputJsonFilepath, outputFolderFilepath) {
   });
 }
 
-export default tasksTree;
-export { _highlightOrphanTasks };
+export default tasksTreeCommand;

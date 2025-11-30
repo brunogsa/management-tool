@@ -8,25 +8,29 @@ A project management simulation tool that visualizes task dependencies and predi
 
 ## Prerequisites
 
-Requires `mermaid-cli` installed globally for diagram generation:
+Requires `mermaid-cli` and `yarn` installed globally:
 ```sh
 npm i -g mermaid-cli
+npm i -g yarn
 ```
 
 ## Common Commands
 
 ```sh
 # Install dependencies
-npm install
+yarn install
 
 # Run tasks-tree command
-npm start tasks-tree <input-json-filepath> <output-folder-filepath>
+yarn start tasks-tree <input-json-filepath> <output-folder-filepath>
+
+# Run tasks-tree command with watch mode
+yarn start tasks-tree <input-json-filepath> <output-folder-filepath> --watch
 
 # Run monte-carlo simulation
-npm start monte-carlo <json-input-filepath> <output-folder-filepath>
+yarn start monte-carlo <json-input-filepath> <output-folder-filepath>
 
 # Run all tests with coverage
-npm test
+yarn test
 
 # Run tests for a specific file
 node --experimental-vm-modules node_modules/jest/bin/jest.js tests/unit/path/to/file.test.js
@@ -35,10 +39,10 @@ node --experimental-vm-modules node_modules/jest/bin/jest.js tests/unit/path/to/
 node --experimental-vm-modules node_modules/jest/bin/jest.js --watch
 
 # Lint code
-npm run lint
+yarn lint
 
 # Auto-fix linting issues
-npm run lint:fix
+yarn lint:fix
 ```
 
 ## Architecture Overview

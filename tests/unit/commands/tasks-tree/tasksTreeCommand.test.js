@@ -33,7 +33,7 @@ jest.unstable_mockModule('../../../../src/use-cases/tasks-tree.js', () => ({
 
 // Import after mocking
 const { default: tasksTreeCommand } = await import('../../../../src/commands/tasks-tree.js');
-const { TIME_UNITS, TASK_TYPE } = await import('../../../../src/models.js');
+const { TIME_UNITS } = await import('../../../../src/models.js');
 
 describe('tasksTreeCommand(inputJsonFilepath, outputFolderFilepath, options) -> Promise<void>', () => {
   let consoleLogSpy;

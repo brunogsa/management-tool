@@ -296,6 +296,14 @@ function generateSickLeaveDuration(randomValue) {
   return Math.floor(randomValue * 5) + 1;
 }
 
+function isPersonHired({ person }) {
+  return person.hired === true;
+}
+
+function filterHiredPersonnel({ personnel }) {
+  return personnel.filter(person => isPersonHired({ person }));
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -394,6 +402,8 @@ export {
   applyVacationToPersonnelCapacity,
   shouldPersonGetSick,
   generateSickLeaveDuration,
+  isPersonHired,
+  filterHiredPersonnel,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

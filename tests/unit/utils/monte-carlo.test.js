@@ -16,6 +16,8 @@ import {
   applyVacationToPersonnelCapacity,
   shouldPersonGetSick,
   generateSickLeaveDuration,
+  isPersonHired,
+  filterHiredPersonnel,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE } from '../../../src/models.js';
 
@@ -1165,6 +1167,66 @@ describe('Monte Carlo Simulation', () => {
         const duration = generateSickLeaveDuration(randomValue);
 
         expect(duration).toBe(5);
+      });
+    });
+  });
+
+  describe('Phase 6: Hiring and Onboarding', () => {
+    describe('Step 18: Hiring status tracking', () => {
+      it('should return true when person is hired', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+
+        const result = isPersonHired({ person });
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when person is not hired', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+
+        const result = isPersonHired({ person });
+
+        expect(result).toBe(false);
+      });
+
+      it('should exclude unhired personnel from available pool', () => {
+        const hired = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const unhired = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: false, isOnboarded: false });
+        const personnel = [hired, unhired];
+
+        const available = filterHiredPersonnel({ personnel });
+
+        expect(available).toHaveLength(1);
+        expect(available).toContain(hired);
+        expect(available).not.toContain(unhired);
+      });
+
+      it('should handle all personnel hired', () => {
+        const person1 = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const person2 = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        const personnel = [person1, person2];
+
+        const available = filterHiredPersonnel({ personnel });
+
+        expect(available).toHaveLength(2);
+      });
+
+      it('should handle all personnel unhired', () => {
+        const person1 = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: false, isOnboarded: false });
+        const person2 = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: false, isOnboarded: false });
+        const personnel = [person1, person2];
+
+        const available = filterHiredPersonnel({ personnel });
+
+        expect(available).toHaveLength(0);
+      });
+
+      it('should handle empty personnel array', () => {
+        const personnel = [];
+
+        const available = filterHiredPersonnel({ personnel });
+
+        expect(available).toHaveLength(0);
       });
     });
   });

@@ -1,4 +1,70 @@
 import { deepClone } from './graph.js';
+import { LEVEL, DEFAULT_VELOCITY_RATE } from '../models.js';
+
+const LEVEL_HIERARCHY = [
+  LEVEL.INTERN,
+  LEVEL.JUNIOR,
+  LEVEL.MID,
+  LEVEL.SENIOR,
+  LEVEL.SPECIALIST,
+];
+
+function _getLevelRank(level) {
+  return LEVEL_HIERARCHY.indexOf(level);
+}
+
+function _isLevelSufficient(personLevel, requiredLevel) {
+  return _getLevelRank(personLevel) >= _getLevelRank(requiredLevel);
+}
+
+function initializeSimulationState() {
+  return {
+    currentWeek: 0,
+  };
+}
+
+function findStartableTasks(tasks) {
+  return tasks.filter(task => {
+    const isNotCompleted = task.remainingDuration > 0;
+    const allDependenciesCompleted = !task.tasksBeingBlocked || task.tasksBeingBlocked.every(dep => dep.remainingDuration === 0);
+
+    return isNotCompleted && allDependenciesCompleted;
+  });
+}
+
+function isPersonQualifiedForTask({ person, task }) {
+  if (!task.requiredSkills || task.requiredSkills.length === 0) {
+    return true;
+  }
+
+  return task.requiredSkills.every(requiredSkill => {
+    const personSkill = person.skills.find(s => s.name === requiredSkill.name);
+
+    if (!personSkill) {
+      return false;
+    }
+
+    return _isLevelSufficient(personSkill.minLevel, requiredSkill.minLevel);
+  });
+}
+
+function assignWorkToTask({ task, person, weeksOfWork }) {
+  const velocityRate = DEFAULT_VELOCITY_RATE[person.level];
+  const potentialWork = weeksOfWork * velocityRate;
+
+  const actualWeeksUsed = Math.min(
+    weeksOfWork,
+    person.availableCapacity,
+    task.remainingDuration / velocityRate
+  );
+
+  const actualWork = actualWeeksUsed * velocityRate;
+
+  task.remainingDuration -= actualWork;
+  person.availableCapacity -= actualWeeksUsed;
+
+  return actualWork;
+}
 
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
@@ -82,6 +148,10 @@ function runMonteCarloSimulation(tasks, personnel, globalParams) {
 }
 
 export {
+  initializeSimulationState,
+  findStartableTasks,
+  isPersonQualifiedForTask,
+  assignWorkToTask,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

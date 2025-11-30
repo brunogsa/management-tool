@@ -54,18 +54,26 @@ async function _startWatchMode(inputJsonFilepath, outputFolderFilepath) {
         <style>
           body {
             margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            overflow: hidden;
             background: #f5f5f5;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           }
+          #container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+          }
           img {
-            max-width: 95vw;
-            max-height: 95vh;
+            max-width: none;
+            max-height: none;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             background: white;
+            transform-origin: center center;
+            transition: none;
+            user-select: none;
           }
           .status {
             position: fixed;
@@ -77,6 +85,7 @@ async function _startWatchMode(inputJsonFilepath, outputFolderFilepath) {
             color: white;
             font-size: 14px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1000;
           }
           .status.regenerating {
             background: #FF9800;
@@ -84,12 +93,58 @@ async function _startWatchMode(inputJsonFilepath, outputFolderFilepath) {
         </style>
       </head>
       <body>
-        <img src="/tasks-tree.png?v=${Date.now()}" alt="Tasks Tree">
+        <div id="container">
+          <img src="/tasks-tree.png?v=${Date.now()}" alt="Tasks Tree" id="diagram">
+        </div>
         <div class="status" id="status">Live</div>
         <script>
           const eventSource = new EventSource('/events');
-          const img = document.querySelector('img');
+          const container = document.getElementById('container');
+          const img = document.getElementById('diagram');
           const status = document.getElementById('status');
+
+          let scale = 1;
+          let translateX = 0;
+          let translateY = 0;
+          let isPanning = false;
+          let startX, startY;
+
+          // Pan and zoom functionality
+          container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            scale *= delta;
+            scale = Math.max(0.1, Math.min(scale, 10));
+            updateTransform();
+          });
+
+          container.addEventListener('mousedown', (e) => {
+            isPanning = true;
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+            container.style.cursor = 'grabbing';
+          });
+
+          container.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            updateTransform();
+          });
+
+          container.addEventListener('mouseup', () => {
+            isPanning = false;
+            container.style.cursor = 'grab';
+          });
+
+          container.addEventListener('mouseleave', () => {
+            isPanning = false;
+            container.style.cursor = 'grab';
+          });
+
+          function updateTransform() {
+            img.style.transform = \`translate(\${translateX}px, \${translateY}px) scale(\${scale})\`;
+          }
 
           eventSource.onmessage = (event) => {
             if (event.data === 'reload') {
@@ -108,6 +163,8 @@ async function _startWatchMode(inputJsonFilepath, outputFolderFilepath) {
             status.textContent = 'Disconnected';
             status.style.background = '#f44336';
           };
+
+          container.style.cursor = 'grab';
         </script>
       </body>
       </html>

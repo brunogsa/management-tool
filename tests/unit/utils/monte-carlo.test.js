@@ -4,6 +4,8 @@ import {
   findStartableTasks,
   isPersonQualifiedForTask,
   assignWorkToTask,
+  runSingleIteration,
+  runMultipleIterations,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE } from '../../../src/models.js';
 
@@ -247,6 +249,185 @@ describe('Monte Carlo Simulation', () => {
 
         // Task initializes to 0, then subtracts 3, resulting in 0 (capped)
         expect(task.remainingDuration).toBe(0);
+      });
+    });
+
+    describe('Step 6: Single iteration execution', () => {
+      it('should run simulation until all tasks are complete', () => {
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.remainingDuration = 2;
+        task1.tasksBeingBlocked = [];
+        task1.requiredSkills = [];
+
+        const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+        task2.remainingDuration = 3;
+        task2.tasksBeingBlocked = [];
+        task2.requiredSkills = [];
+
+        const tasks = [task1, task2];
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person.skills = [];
+        person.availableCapacity = 10;
+
+        const personnel = [person];
+
+        const result = runSingleIteration({ tasks, personnel });
+
+        expect(result.completionWeek).toBeGreaterThan(0);
+        expect(task1.isDone()).toBe(true);
+        expect(task2.isDone()).toBe(true);
+      });
+
+      it('should track completion dates for each task', () => {
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.remainingDuration = 1;
+        task1.tasksBeingBlocked = [];
+        task1.requiredSkills = [];
+
+        const tasks = [task1];
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.skills = [];
+        person.availableCapacity = 10;
+
+        const personnel = [person];
+
+        const result = runSingleIteration({ tasks, personnel });
+
+        expect(result.taskCompletionDates).toBeDefined();
+        expect(result.taskCompletionDates.t1).toBeGreaterThan(0);
+      });
+
+      it('should handle dependent tasks in correct order', () => {
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.remainingDuration = 2;
+        task1.tasksBeingBlocked = [];
+        task1.requiredSkills = [];
+
+        const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+        task2.remainingDuration = 2;
+        task2.tasksBeingBlocked = [task1];
+        task2.requiredSkills = [];
+
+        const tasks = [task1, task2];
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person.skills = [];
+        person.availableCapacity = 10;
+
+        const personnel = [person];
+
+        const result = runSingleIteration({ tasks, personnel });
+
+        expect(result.taskCompletionDates.t1).toBeLessThan(result.taskCompletionDates.t2);
+      });
+
+      it('should increment week counter during simulation', () => {
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.remainingDuration = 5;
+        task1.tasksBeingBlocked = [];
+        task1.requiredSkills = [];
+
+        const tasks = [task1];
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person.skills = [];
+        person.availableCapacity = 1;
+
+        const personnel = [person];
+
+        const result = runSingleIteration({ tasks, personnel });
+
+        expect(result.completionWeek).toBeGreaterThan(1);
+      });
+    });
+
+    describe('Step 7: Multiple iterations aggregation', () => {
+      it('should run N iterations and collect completion dates', () => {
+        const createTasks = () => {
+          const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+          task1.remainingDuration = 2;
+          task1.tasksBeingBlocked = [];
+          task1.requiredSkills = [];
+          return [task1];
+        };
+
+        const createPersonnel = () => {
+          const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+          person.skills = [];
+          return [person];
+        };
+
+        const result = runMultipleIterations({
+          tasks: createTasks,
+          personnel: createPersonnel,
+          numIterations: 5,
+        });
+
+        expect(result.iterations).toHaveLength(5);
+        expect(result.iterations.every(iter => iter.completionWeek > 0)).toBe(true);
+      });
+
+      it('should collect completion dates for all tasks across iterations', () => {
+        const createTasks = () => {
+          const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+          task1.remainingDuration = 1;
+          task1.tasksBeingBlocked = [];
+          task1.requiredSkills = [];
+
+          const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+          task2.remainingDuration = 2;
+          task2.tasksBeingBlocked = [];
+          task2.requiredSkills = [];
+
+          return [task1, task2];
+        };
+
+        const createPersonnel = () => {
+          const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+          person.skills = [];
+          return [person];
+        };
+
+        const result = runMultipleIterations({
+          tasks: createTasks,
+          personnel: createPersonnel,
+          numIterations: 3,
+        });
+
+        expect(result.iterations).toHaveLength(3);
+        result.iterations.forEach(iter => {
+          expect(iter.taskCompletionDates.t1).toBeDefined();
+          expect(iter.taskCompletionDates.t2).toBeDefined();
+        });
+      });
+
+      it('should create independent copies for each iteration', () => {
+        const createTasks = () => {
+          const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+          task1.remainingDuration = 2;
+          task1.tasksBeingBlocked = [];
+          task1.requiredSkills = [];
+          return [task1];
+        };
+
+        const createPersonnel = () => {
+          const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+          person.skills = [];
+          return [person];
+        };
+
+        const result = runMultipleIterations({
+          tasks: createTasks,
+          personnel: createPersonnel,
+          numIterations: 10,
+        });
+
+        // All iterations should have similar completion times (since tasks are identical)
+        const completionWeeks = result.iterations.map(iter => iter.completionWeek);
+        const allSimilar = completionWeeks.every(week => week === completionWeeks[0]);
+        expect(allSimilar).toBe(true);
       });
     });
   });

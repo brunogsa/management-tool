@@ -49,8 +49,15 @@ function isPersonQualifiedForTask({ person, task }) {
 }
 
 function assignWorkToTask({ task, person, weeksOfWork }) {
+  // Initialize if needed
+  if (task.remainingDuration === undefined) {
+    task.remainingDuration = 0;
+  }
+  if (task.remainingReworkDuration === undefined) {
+    task.remainingReworkDuration = 0;
+  }
+
   const velocityRate = DEFAULT_VELOCITY_RATE[person.level];
-  const potentialWork = weeksOfWork * velocityRate;
 
   const actualWeeksUsed = Math.min(
     weeksOfWork,
@@ -64,6 +71,89 @@ function assignWorkToTask({ task, person, weeksOfWork }) {
   person.availableCapacity -= actualWeeksUsed;
 
   return actualWork;
+}
+
+function runSingleIteration({ tasks, personnel }) {
+  const state = initializeSimulationState();
+  const taskCompletionDates = {};
+  const MAX_WEEKS = 1000;
+
+  while (state.currentWeek < MAX_WEEKS) {
+    state.currentWeek++;
+
+    // Reset personnel capacity each week
+    for (const person of personnel) {
+      person.availableCapacity = 1;
+    }
+
+    // Find startable tasks
+    const startableTasks = findStartableTasks(tasks);
+
+    if (startableTasks.length === 0) {
+      // Check if all tasks are done
+      const allDone = tasks.every(task => task.isDone());
+      if (allDone) {
+        break;
+      }
+    }
+
+    // Assign work to tasks
+    for (const task of startableTasks) {
+      for (const person of personnel) {
+        if (person.availableCapacity <= 0) {
+          continue;
+        }
+
+        if (!isPersonQualifiedForTask({ person, task })) {
+          continue;
+        }
+
+        assignWorkToTask({ task, person, weeksOfWork: person.availableCapacity });
+
+        // Track completion
+        if (task.isDone() && !taskCompletionDates[task.id]) {
+          taskCompletionDates[task.id] = state.currentWeek;
+        }
+      }
+    }
+  }
+
+  return {
+    completionWeek: state.currentWeek,
+    taskCompletionDates,
+  };
+}
+
+function runMultipleIterations({ tasks, personnel, numIterations }) {
+  const iterations = [];
+
+  for (let i = 0; i < numIterations; i++) {
+    // Use factory functions if provided, otherwise deep clone
+    let tasksCopy, personnelCopy;
+
+    if (typeof tasks === 'function') {
+      tasksCopy = tasks();
+    } else {
+      tasksCopy = deepClone(tasks);
+    }
+
+    if (typeof personnel === 'function') {
+      personnelCopy = personnel();
+    } else {
+      personnelCopy = deepClone(personnel);
+    }
+
+    const result = runSingleIteration({
+      tasks: tasksCopy,
+      personnel: personnelCopy,
+    });
+
+    iterations.push(result);
+  }
+
+  return {
+    iterations,
+  };
 }
 
 // TODO: Implement this helper function
@@ -152,6 +242,8 @@ export {
   findStartableTasks,
   isPersonQualifiedForTask,
   assignWorkToTask,
+  runSingleIteration,
+  runMultipleIterations,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

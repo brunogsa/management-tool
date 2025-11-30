@@ -321,6 +321,21 @@ function calculateHireCompletionWeek({ person, hiringTimeInWeeks }) {
   return person.hiringStartWeek + hiringTimeInWeeks;
 }
 
+function isPersonOnboarded({ person }) {
+  return person.onboarded === true;
+}
+
+function filterOnboardedPersonnel({ personnel }) {
+  return personnel.filter(person => isPersonOnboarded({ person }));
+}
+
+function isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks }) {
+  if (person.onboardingStartWeek === undefined) {
+    return false;
+  }
+  return currentWeek >= person.onboardingStartWeek + rampUpTimeInWeeks;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -424,6 +439,9 @@ export {
   isHiringComplete,
   completeHiring,
   calculateHireCompletionWeek,
+  isPersonOnboarded,
+  filterOnboardedPersonnel,
+  isOnboardingComplete,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

@@ -21,6 +21,9 @@ import {
   isHiringComplete,
   completeHiring,
   calculateHireCompletionWeek,
+  isPersonOnboarded,
+  filterOnboardedPersonnel,
+  isOnboardingComplete,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE } from '../../../src/models.js';
 
@@ -1307,6 +1310,78 @@ describe('Monte Carlo Simulation', () => {
         const completionWeek = calculateHireCompletionWeek({ person, hiringTimeInWeeks });
 
         expect(completionWeek).toBe(5); // 2 + 3
+      });
+    });
+
+    describe('Step 20: Onboarding status tracking', () => {
+      it('should return true when person is onboarded', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+
+        const result = isPersonOnboarded({ person });
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when person is not onboarded', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+
+        const result = isPersonOnboarded({ person });
+
+        expect(result).toBe(false);
+      });
+
+      it('should exclude non-onboarded personnel even if hired', () => {
+        const onboarded = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const notOnboarded = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: false });
+        const personnel = [onboarded, notOnboarded];
+
+        const available = filterOnboardedPersonnel({ personnel });
+
+        expect(available).toHaveLength(1);
+        expect(available).toContain(onboarded);
+        expect(available).not.toContain(notOnboarded);
+      });
+
+      it('should handle all personnel onboarded', () => {
+        const person1 = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const person2 = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        const personnel = [person1, person2];
+
+        const available = filterOnboardedPersonnel({ personnel });
+
+        expect(available).toHaveLength(2);
+      });
+
+      it('should handle all personnel not onboarded', () => {
+        const person1 = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        const person2 = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: false });
+        const personnel = [person1, person2];
+
+        const available = filterOnboardedPersonnel({ personnel });
+
+        expect(available).toHaveLength(0);
+      });
+
+      it('should return false when onboarding not yet complete', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        person.onboardingStartWeek = 0;
+        const currentWeek = 1;
+        const rampUpTimeInWeeks = 3;
+
+        const result = isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks });
+
+        expect(result).toBe(false);
+      });
+
+      it('should return true when onboarding time has passed', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
+        person.onboardingStartWeek = 0;
+        const currentWeek = 3;
+        const rampUpTimeInWeeks = 3;
+
+        const result = isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks });
+
+        expect(result).toBe(true);
       });
     });
   });

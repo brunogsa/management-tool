@@ -14,8 +14,9 @@ import {
   createReworkTask,
   isPersonOnVacation,
   applyVacationToPersonnelCapacity,
+  shouldPersonGetSick,
 } from '../../../src/utils/monte-carlo.js';
-import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE } from '../../../src/models.js';
+import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE } from '../../../src/models.js';
 
 describe('Monte Carlo Simulation', () => {
   describe('Phase 1: Simple Simulation Foundation', () => {
@@ -1028,6 +1029,74 @@ describe('Monte Carlo Simulation', () => {
 
         expect(person1.availableCapacity).toBe(0);
         expect(person2.availableCapacity).toBe(0);
+      });
+    });
+  });
+
+  describe('Phase 5: Sick Leave Simulation', () => {
+    describe('Step 16: Weekly sick probability', () => {
+      it('should return true when random value is below sick rate', () => {
+        const mockRandom = 0.0001; // 0.01% < 0.0389% sick rate
+        const sickRate = 0.000389;
+
+        const result = shouldPersonGetSick(sickRate, mockRandom);
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when random value is above sick rate', () => {
+        const mockRandom = 0.0005; // 0.05% > 0.0389% sick rate
+        const sickRate = 0.000389;
+
+        const result = shouldPersonGetSick(sickRate, mockRandom);
+
+        expect(result).toBe(false);
+      });
+
+      it('should use default sick rate (0.0389%)', () => {
+        const mockRandom = 0.0003; // 0.03% < 0.0389%
+        const sickRate = DEFAULT_WEEKLY_SICK_CHANCE;
+
+        const result = shouldPersonGetSick(sickRate, mockRandom);
+
+        expect(result).toBe(true);
+        expect(sickRate).toBe(0.000389);
+      });
+
+      it('should handle edge case at exactly sick rate', () => {
+        const mockRandom = 0.000389; // Exactly 0.0389%
+        const sickRate = 0.000389;
+
+        const result = shouldPersonGetSick(sickRate, mockRandom);
+
+        expect(result).toBe(false); // >= means no sick leave
+      });
+
+      it('should always get sick with 100% rate', () => {
+        const mockRandom = 0.99;
+        const sickRate = 1.0;
+
+        const result = shouldPersonGetSick(sickRate, mockRandom);
+
+        expect(result).toBe(true);
+      });
+
+      it('should never get sick with 0% rate', () => {
+        const mockRandom = 0.0;
+        const sickRate = 0.0;
+
+        const result = shouldPersonGetSick(sickRate, mockRandom);
+
+        expect(result).toBe(false);
+      });
+
+      it('should handle very low probability correctly', () => {
+        const mockRandom = 0.00001; // Very small random
+        const sickRate = 0.000389;
+
+        const result = shouldPersonGetSick(sickRate, mockRandom);
+
+        expect(result).toBe(true);
       });
     });
   });

@@ -288,6 +288,10 @@ function applyVacationToPersonnelCapacity({ personnel, currentDate }) {
   }
 }
 
+function shouldPersonGetSick(sickRate, randomValue) {
+  return randomValue < sickRate;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -384,6 +388,7 @@ export {
   createReworkTask,
   isPersonOnVacation,
   applyVacationToPersonnelCapacity,
+  shouldPersonGetSick,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

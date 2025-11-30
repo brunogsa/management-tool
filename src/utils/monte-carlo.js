@@ -233,6 +233,10 @@ function updateSplitDependencies({ originalTask, splitTask, tasks }) {
   }
 }
 
+function shouldTaskRequireRework(reworkRate, randomValue) {
+  return randomValue < reworkRate;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -325,6 +329,7 @@ export {
   shouldTaskSplit,
   createSplitTask,
   updateSplitDependencies,
+  shouldTaskRequireRework,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

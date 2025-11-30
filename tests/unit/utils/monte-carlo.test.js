@@ -10,8 +10,9 @@ import {
   shouldTaskSplit,
   createSplitTask,
   updateSplitDependencies,
+  shouldTaskRequireRework,
 } from '../../../src/utils/monte-carlo.js';
-import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE } from '../../../src/models.js';
+import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE } from '../../../src/models.js';
 
 describe('Monte Carlo Simulation', () => {
   describe('Phase 1: Simple Simulation Foundation', () => {
@@ -662,6 +663,105 @@ describe('Monte Carlo Simulation', () => {
         expect(splitTask.tasksBeingBlocked).toContain(original);
         expect(splitTask.tasksBeingBlocked).toContain(blocker);
         expect(splitTask.tasksBeingBlocked).toHaveLength(2);
+      });
+    });
+  });
+
+  describe('Phase 3: Rework Modeling', () => {
+    describe('Step 12: Rework probability by skill level', () => {
+      it('should return true when random value is below rework rate', () => {
+        const mockRandom = 0.10; // 10% < 13% junior rework rate
+        const reworkRate = 0.13;
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when random value is above rework rate', () => {
+        const mockRandom = 0.15; // 15% > 13% junior rework rate
+        const reworkRate = 0.13;
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(false);
+      });
+
+      it('should use intern rework rate (21%)', () => {
+        const mockRandom = 0.20; // 20% < 21%
+        const reworkRate = DEFAULT_REWORK_RATE[LEVEL.INTERN];
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(true);
+        expect(reworkRate).toBe(0.21);
+      });
+
+      it('should use junior rework rate (13%)', () => {
+        const mockRandom = 0.12; // 12% < 13%
+        const reworkRate = DEFAULT_REWORK_RATE[LEVEL.JUNIOR];
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(true);
+        expect(reworkRate).toBe(0.13);
+      });
+
+      it('should use mid rework rate (8%)', () => {
+        const mockRandom = 0.07; // 7% < 8%
+        const reworkRate = DEFAULT_REWORK_RATE[LEVEL.MID];
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(true);
+        expect(reworkRate).toBe(0.08);
+      });
+
+      it('should use senior rework rate (5%)', () => {
+        const mockRandom = 0.04; // 4% < 5%
+        const reworkRate = DEFAULT_REWORK_RATE[LEVEL.SENIOR];
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(true);
+        expect(reworkRate).toBe(0.05);
+      });
+
+      it('should use specialist rework rate (3%)', () => {
+        const mockRandom = 0.02; // 2% < 3%
+        const reworkRate = DEFAULT_REWORK_RATE[LEVEL.SPECIALIST];
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(true);
+        expect(reworkRate).toBe(0.03);
+      });
+
+      it('should handle edge case at exactly rework rate', () => {
+        const mockRandom = 0.13; // Exactly 13%
+        const reworkRate = 0.13;
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(false); // >= means no rework
+      });
+
+      it('should always require rework with 100% rate', () => {
+        const mockRandom = 0.99;
+        const reworkRate = 1.0;
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(true);
+      });
+
+      it('should never require rework with 0% rate', () => {
+        const mockRandom = 0.0;
+        const reworkRate = 0.0;
+
+        const result = shouldTaskRequireRework(reworkRate, mockRandom);
+
+        expect(result).toBe(false);
       });
     });
   });

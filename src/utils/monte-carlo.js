@@ -212,6 +212,27 @@ function createSplitTask({ task, tasks }) {
   };
 }
 
+function updateSplitDependencies({ originalTask, splitTask, tasks }) {
+  // Make split task depend on original (original blocks split)
+  if (!splitTask.tasksBeingBlocked) {
+    splitTask.tasksBeingBlocked = [];
+  }
+  if (!splitTask.tasksBeingBlocked.includes(originalTask)) {
+    splitTask.tasksBeingBlocked.push(originalTask);
+  }
+
+  // Make split task block everything original was blocking
+  if (tasks) {
+    for (const task of tasks) {
+      if (task.tasksBeingBlocked && task.tasksBeingBlocked.includes(originalTask)) {
+        if (!task.tasksBeingBlocked.includes(splitTask)) {
+          task.tasksBeingBlocked.push(splitTask);
+        }
+      }
+    }
+  }
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -303,6 +324,7 @@ export {
   calculatePercentiles,
   shouldTaskSplit,
   createSplitTask,
+  updateSplitDependencies,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

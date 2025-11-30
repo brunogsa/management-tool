@@ -9,6 +9,7 @@ import {
   calculatePercentiles,
   shouldTaskSplit,
   createSplitTask,
+  updateSplitDependencies,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE } from '../../../src/models.js';
 
@@ -595,6 +596,72 @@ describe('Monte Carlo Simulation', () => {
 
         expect(splitTask.tasksBeingBlocked).toHaveLength(1);
         expect(splitTask.tasksBeingBlocked[0]).toBe(blocker);
+      });
+    });
+
+    describe('Step 11: Split dependency update', () => {
+      it('should make original task block split task', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        const splitTask = new Task({ id: 't1-split', title: 'Split', type: TASK_TYPE.USER_STORY });
+        splitTask.remainingDuration = 5;
+
+        updateSplitDependencies({ originalTask: original, splitTask });
+
+        expect(splitTask.tasksBeingBlocked).toContain(original);
+      });
+
+      it('should make split task block everything original was blocking', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        const dependent1 = new Task({ id: 't2', title: 'Dependent 1', type: TASK_TYPE.USER_STORY });
+        const dependent2 = new Task({ id: 't3', title: 'Dependent 2', type: TASK_TYPE.USER_STORY });
+
+        dependent1.tasksBeingBlocked = [original];
+        dependent2.tasksBeingBlocked = [original];
+
+        const splitTask = new Task({ id: 't1-split', title: 'Split', type: TASK_TYPE.USER_STORY });
+        const tasks = [original, dependent1, dependent2, splitTask];
+
+        updateSplitDependencies({ originalTask: original, splitTask, tasks });
+
+        expect(dependent1.tasksBeingBlocked).toContain(splitTask);
+        expect(dependent2.tasksBeingBlocked).toContain(splitTask);
+      });
+
+      it('should not duplicate dependencies', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        const splitTask = new Task({ id: 't1-split', title: 'Split', type: TASK_TYPE.USER_STORY });
+        splitTask.tasksBeingBlocked = [];
+
+        // Call twice to test deduplication
+        updateSplitDependencies({ originalTask: original, splitTask });
+        updateSplitDependencies({ originalTask: original, splitTask });
+
+        const originalCount = splitTask.tasksBeingBlocked.filter(t => t === original).length;
+        expect(originalCount).toBe(1);
+      });
+
+      it('should handle original with no dependents', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        const splitTask = new Task({ id: 't1-split', title: 'Split', type: TASK_TYPE.USER_STORY });
+        const tasks = [original, splitTask];
+
+        updateSplitDependencies({ originalTask: original, splitTask, tasks });
+
+        expect(splitTask.tasksBeingBlocked).toContain(original);
+      });
+
+      it('should maintain existing dependencies on split task', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        const blocker = new Task({ id: 't0', title: 'Blocker', type: TASK_TYPE.USER_STORY });
+        const splitTask = new Task({ id: 't1-split', title: 'Split', type: TASK_TYPE.USER_STORY });
+        splitTask.tasksBeingBlocked = [blocker];
+
+        updateSplitDependencies({ originalTask: original, splitTask });
+
+        expect(splitTask.tasksBeingBlocked).toContain(original);
+        expect(splitTask.tasksBeingBlocked).toContain(blocker);
+        expect(splitTask.tasksBeingBlocked).toHaveLength(2);
       });
     });
   });

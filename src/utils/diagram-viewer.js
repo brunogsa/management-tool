@@ -94,14 +94,31 @@ async function startDiagramViewer(imageFilepath) {
           // Pan and zoom functionality
           container.addEventListener('wheel', (e) => {
             e.preventDefault();
+
+            // Get mouse position relative to container
+            const rect = container.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Calculate position before zoom
+            const beforeZoomX = (mouseX - translateX) / scale;
+            const beforeZoomY = (mouseY - translateY) / scale;
+
+            // Update scale
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            scale *= delta;
-            scale = Math.max(0.1, Math.min(scale, 10));
+            const newScale = Math.max(0.1, Math.min(scale * delta, 10));
+
+            // Adjust translation to keep mouse position fixed
+            translateX = mouseX - beforeZoomX * newScale;
+            translateY = mouseY - beforeZoomY * newScale;
+            scale = newScale;
+
             updateTransform();
             saveState();
           });
 
           container.addEventListener('mousedown', (e) => {
+            e.preventDefault();
             isPanning = true;
             startX = e.clientX - translateX;
             startY = e.clientY - translateY;
@@ -110,20 +127,27 @@ async function startDiagramViewer(imageFilepath) {
 
           container.addEventListener('mousemove', (e) => {
             if (!isPanning) return;
+            e.preventDefault();
             translateX = e.clientX - startX;
             translateY = e.clientY - startY;
             updateTransform();
           });
 
-          container.addEventListener('mouseup', () => {
-            isPanning = false;
-            container.style.cursor = 'grab';
-            saveState();
+          container.addEventListener('mouseup', (e) => {
+            if (isPanning) {
+              e.preventDefault();
+              isPanning = false;
+              container.style.cursor = 'grab';
+              saveState();
+            }
           });
 
           container.addEventListener('mouseleave', () => {
-            isPanning = false;
-            container.style.cursor = 'grab';
+            if (isPanning) {
+              isPanning = false;
+              container.style.cursor = 'grab';
+              saveState();
+            }
           });
 
           function updateTransform() {

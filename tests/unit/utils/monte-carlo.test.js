@@ -35,6 +35,10 @@ import {
   getStartDateConstraint,
   isTaskStartableByDate,
   filterTasksByStartDate,
+  findIterationForPercentile,
+  extractTaskTimeline,
+  extractPercentilesTimeline,
+  generateGanttChartCode,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE } from '../../../src/models.js';
 
@@ -1823,6 +1827,112 @@ describe('Monte Carlo Simulation', () => {
         expect(result).toContain(task1);
         expect(result).toContain(task3);
         expect(result).not.toContain(task2);
+      });
+    });
+  });
+
+  describe('Phase 9: Output Generation', () => {
+    describe('Step 28: Gantt chart data preparation', () => {
+      it('should find iteration at specific percentile by completion week', () => {
+        const iterations = [
+          { completionWeek: 10, taskCompletionDates: {} },
+          { completionWeek: 15, taskCompletionDates: {} },
+          { completionWeek: 20, taskCompletionDates: {} },
+          { completionWeek: 25, taskCompletionDates: {} },
+          { completionWeek: 30, taskCompletionDates: {} },
+        ];
+
+        const p50Iteration = findIterationForPercentile({ iterations, percentile: 50 });
+
+        expect(p50Iteration.completionWeek).toBe(20);
+      });
+
+      it('should find p90 iteration correctly', () => {
+        const iterations = Array.from({ length: 100 }, (_, i) => ({
+          completionWeek: i + 10,
+          taskCompletionDates: {},
+        }));
+
+        const p90Iteration = findIterationForPercentile({ iterations, percentile: 90 });
+
+        expect(p90Iteration.completionWeek).toBe(99);
+      });
+
+      it('should extract task completion dates from iteration', () => {
+        const iteration = {
+          completionWeek: 20,
+          taskCompletionDates: {
+            't1': 5,
+            't2': 10,
+            't3': 15,
+          },
+        };
+
+        const timeline = extractTaskTimeline({ iteration });
+
+        expect(timeline).toEqual({
+          't1': 5,
+          't2': 10,
+          't3': 15,
+        });
+      });
+
+      it('should extract percentile timelines for multiple percentiles', () => {
+        const iterations = [
+          { completionWeek: 10, taskCompletionDates: { 't1': 5, 't2': 8 } },
+          { completionWeek: 15, taskCompletionDates: { 't1': 7, 't2': 12 } },
+          { completionWeek: 20, taskCompletionDates: { 't1': 10, 't2': 15 } },
+          { completionWeek: 25, taskCompletionDates: { 't1': 12, 't2': 20 } },
+          { completionWeek: 30, taskCompletionDates: { 't1': 15, 't2': 25 } },
+        ];
+
+        const result = extractPercentilesTimeline({ iterations, percentiles: [50, 90] });
+
+        expect(result).toHaveLength(2);
+        expect(result[0].percentile).toBe(50);
+        expect(result[0].timeline).toEqual({ 't1': 10, 't2': 15 });
+        expect(result[1].percentile).toBe(90);
+        expect(result[1].timeline).toEqual({ 't1': 15, 't2': 25 });
+      });
+    });
+
+    describe('Step 29: Gantt chart rendering', () => {
+      it('should generate Mermaid Gantt chart code from task timeline', () => {
+        const taskCompletionDates = {
+          't1': 5,
+          't2': 10,
+        };
+
+        const tasks = [
+          new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY }),
+          new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY }),
+        ];
+
+        const code = generateGanttChartCode({ taskCompletionDates, tasks, title: 'P50 Timeline' });
+
+        expect(code).toContain('gantt');
+        expect(code).toContain('title P50 Timeline');
+        expect(code).toContain('Task 1');
+        expect(code).toContain('Task 2');
+      });
+
+      it('should handle tasks with dependencies in Gantt chart', () => {
+        const taskCompletionDates = {
+          't1': 5,
+          't2': 10,
+        };
+
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+        task2.dependsOnTasks = ['t1'];
+
+        const tasks = [task1, task2];
+
+        const code = generateGanttChartCode({ taskCompletionDates, tasks, title: 'Timeline' });
+
+        expect(code).toContain('gantt');
+        expect(code).toContain('Task 1');
+        expect(code).toContain('Task 2');
       });
     });
   });

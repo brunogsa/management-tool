@@ -414,6 +414,57 @@ function filterTasksByStartDate({ tasks, currentDate }) {
   return tasks.filter(task => isTaskStartableByDate({ task, currentDate }));
 }
 
+function findIterationForPercentile({ iterations, percentile }) {
+  // Sort iterations by completion week
+  const sorted = [...iterations].sort((a, b) => a.completionWeek - b.completionWeek);
+
+  // Calculate percentile index using same algorithm as calculatePercentiles
+  const index = (percentile / 100) * (sorted.length - 1);
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  const weight = index - lower;
+
+  // For simplicity, return the upper index iteration
+  // (linear interpolation doesn't make sense for discrete iterations)
+  if (weight > 0.5) {
+    return sorted[upper];
+  }
+  return sorted[lower];
+}
+
+function extractTaskTimeline({ iteration }) {
+  return iteration.taskCompletionDates;
+}
+
+function extractPercentilesTimeline({ iterations, percentiles }) {
+  return percentiles.map(percentile => {
+    const iteration = findIterationForPercentile({ iterations, percentile });
+    const timeline = extractTaskTimeline({ iteration });
+    return {
+      percentile,
+      timeline,
+    };
+  });
+}
+
+function generateGanttChartCode({ taskCompletionDates, tasks, title }) {
+  let code = 'gantt\n';
+  code += `    title ${title}\n`;
+  code += '    dateFormat YYYY-MM-DD\n';
+  code += '    section Tasks\n';
+
+  // Generate entries for each task
+  for (const task of tasks) {
+    const completionWeek = taskCompletionDates[task.id];
+    if (completionWeek !== undefined) {
+      // Simple representation: show task completion week
+      code += `    ${task.title} :${task.id}, 2025-01-01, ${completionWeek}w\n`;
+    }
+  }
+
+  return code;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -531,6 +582,10 @@ export {
   getStartDateConstraint,
   isTaskStartableByDate,
   filterTasksByStartDate,
+  findIterationForPercentile,
+  extractTaskTimeline,
+  extractPercentilesTimeline,
+  generateGanttChartCode,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

@@ -7,6 +7,8 @@ import {
   runSingleIteration,
   runMultipleIterations,
   calculatePercentiles,
+  shouldTaskSplit,
+  createSplitTask,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE } from '../../../src/models.js';
 
@@ -476,6 +478,123 @@ describe('Monte Carlo Simulation', () => {
         expect(percentiles.p90).toBe(42);
         expect(percentiles.p95).toBe(42);
         expect(percentiles.p99).toBe(42);
+      });
+    });
+  });
+
+  describe('Phase 2: Task Split Rate', () => {
+    describe('Step 9: Split probability detection', () => {
+      it('should return true when random value is below split rate', () => {
+        const mockRandom = 0.10; // 10% < 15% split rate
+        const splitRate = 0.15;
+
+        const result = shouldTaskSplit(splitRate, mockRandom);
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when random value is above split rate', () => {
+        const mockRandom = 0.20; // 20% > 15% split rate
+        const splitRate = 0.15;
+
+        const result = shouldTaskSplit(splitRate, mockRandom);
+
+        expect(result).toBe(false);
+      });
+
+      it('should use default split rate if not provided', () => {
+        const mockRandom = 0.10;
+
+        const result = shouldTaskSplit(undefined, mockRandom);
+
+        expect(result).toBe(true); // 10% < 15% default
+      });
+
+      it('should handle edge case at exactly split rate', () => {
+        const mockRandom = 0.15;
+        const splitRate = 0.15;
+
+        const result = shouldTaskSplit(splitRate, mockRandom);
+
+        expect(result).toBe(false); // Should use < not <=
+      });
+
+      it('should always split with 100% rate', () => {
+        const mockRandom = 0.99;
+        const splitRate = 1.0;
+
+        const result = shouldTaskSplit(splitRate, mockRandom);
+
+        expect(result).toBe(true);
+      });
+
+      it('should never split with 0% rate', () => {
+        const mockRandom = 0.01;
+        const splitRate = 0.0;
+
+        const result = shouldTaskSplit(splitRate, mockRandom);
+
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('Step 10: Split task creation', () => {
+      it('should create new task with same properties as original', () => {
+        const original = new Task({ id: 't1', title: 'Original Task', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        original.requiredSkills = [new Skill({ name: 'JavaScript', minLevel: LEVEL.MID })];
+
+        const { originalTask, splitTask, tasks } = createSplitTask({ task: original, tasks: [original] });
+
+        expect(splitTask.title).toBe('Original Task');
+        expect(splitTask.type).toBe(TASK_TYPE.USER_STORY);
+        expect(splitTask.requiredSkills).toHaveLength(1);
+        expect(splitTask.requiredSkills[0].name).toBe('JavaScript');
+        expect(splitTask.id).toContain('t1-split');
+      });
+
+      it('should divide remaining duration between original and split', () => {
+        const original = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+
+        const { originalTask, splitTask } = createSplitTask({ task: original, tasks: [original] });
+
+        expect(originalTask.remainingDuration).toBeCloseTo(5, 1);
+        expect(splitTask.remainingDuration).toBeCloseTo(5, 1);
+        expect(originalTask.remainingDuration + splitTask.remainingDuration).toBeCloseTo(10, 1);
+      });
+
+      it('should add split task to tasks array', () => {
+        const original = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        const tasksArray = [original];
+
+        const { tasks } = createSplitTask({ task: original, tasks: tasksArray });
+
+        expect(tasks).toHaveLength(2);
+        expect(tasks[1].id).toContain('t1-split');
+      });
+
+      it('should handle tasks with zero remaining duration', () => {
+        const original = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 0;
+
+        const { originalTask, splitTask } = createSplitTask({ task: original, tasks: [original] });
+
+        expect(originalTask.remainingDuration).toBe(0);
+        expect(splitTask.remainingDuration).toBe(0);
+      });
+
+      it('should copy tasksBeingBlocked from original', () => {
+        const original = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        const blocker = new Task({ id: 't0', title: 'Blocker', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        original.tasksBeingBlocked = [blocker];
+
+        const { splitTask } = createSplitTask({ task: original, tasks: [original] });
+
+        expect(splitTask.tasksBeingBlocked).toHaveLength(1);
+        expect(splitTask.tasksBeingBlocked[0]).toBe(blocker);
       });
     });
   });

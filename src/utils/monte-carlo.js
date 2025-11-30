@@ -1,5 +1,5 @@
 import { deepClone } from './graph.js';
-import { LEVEL, DEFAULT_VELOCITY_RATE } from '../models.js';
+import { LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_TASK_SPLIT_RATE, Task } from '../models.js';
 
 const LEVEL_HIERARCHY = [
   LEVEL.INTERN,
@@ -181,6 +181,37 @@ function calculatePercentiles(values) {
   };
 }
 
+function shouldTaskSplit(splitRate, randomValue) {
+  const effectiveSplitRate = splitRate !== undefined ? splitRate : DEFAULT_TASK_SPLIT_RATE;
+  return randomValue < effectiveSplitRate;
+}
+
+function createSplitTask({ task, tasks }) {
+  // Create new task with same properties
+  const splitTask = new Task({ id: `${task.id}-split-${Date.now()}`, title: task.title, type: task.type });
+
+  // Copy properties
+  splitTask.requiredSkills = [...(task.requiredSkills || [])];
+  splitTask.tasksBeingBlocked = task.tasksBeingBlocked || [];
+
+  // Divide remaining duration
+  const halfDuration = task.remainingDuration / 2;
+  task.remainingDuration = halfDuration;
+  splitTask.remainingDuration = halfDuration;
+
+  // Initialize rework duration for split task
+  splitTask.remainingReworkDuration = 0;
+
+  // Add to tasks array
+  tasks.push(splitTask);
+
+  return {
+    originalTask: task,
+    splitTask,
+    tasks,
+  };
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -270,6 +301,8 @@ export {
   runSingleIteration,
   runMultipleIterations,
   calculatePercentiles,
+  shouldTaskSplit,
+  createSplitTask,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

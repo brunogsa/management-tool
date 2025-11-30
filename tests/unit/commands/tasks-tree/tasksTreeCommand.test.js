@@ -3,24 +3,16 @@ import { jest } from '@jest/globals';
 // Mock dependencies
 const mockReadFileSync = jest.fn();
 const mockWriteFileSync = jest.fn();
+const mockExistsSync = jest.fn();
 const mockRenderImage = jest.fn();
 const mockTasksTreeUseCase = jest.fn();
+const mockStartDiagramViewer = jest.fn();
+const mockStartAutoreloadWatcher = jest.fn();
 
 jest.unstable_mockModule('fs', () => ({
   readFileSync: mockReadFileSync,
   writeFileSync: mockWriteFileSync,
-}));
-
-jest.unstable_mockModule('chokidar', () => ({
-  watch: jest.fn(),
-}));
-
-jest.unstable_mockModule('express', () => ({
-  default: jest.fn(),
-}));
-
-jest.unstable_mockModule('open', () => ({
-  default: jest.fn(),
+  existsSync: mockExistsSync,
 }));
 
 jest.unstable_mockModule('../../../../src/utils/image-renderer.js', () => ({
@@ -29,6 +21,14 @@ jest.unstable_mockModule('../../../../src/utils/image-renderer.js', () => ({
 
 jest.unstable_mockModule('../../../../src/use-cases/tasks-tree.js', () => ({
   default: mockTasksTreeUseCase,
+}));
+
+jest.unstable_mockModule('../../../../src/utils/diagram-viewer.js', () => ({
+  default: mockStartDiagramViewer,
+}));
+
+jest.unstable_mockModule('../../../../src/utils/autoreload-watcher.js', () => ({
+  default: mockStartAutoreloadWatcher,
 }));
 
 // Import after mocking

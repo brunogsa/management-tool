@@ -393,6 +393,27 @@ function completeOnboarding({ person, currentWeek, rampUpTimeInWeeks }) {
   }
 }
 
+function hasStartDateConstraint({ task }) {
+  return task.onlyStartableAt !== undefined;
+}
+
+function getStartDateConstraint({ task }) {
+  return task.onlyStartableAt;
+}
+
+function isTaskStartableByDate({ task, currentDate }) {
+  if (!hasStartDateConstraint({ task })) {
+    return true;
+  }
+
+  const constraint = getStartDateConstraint({ task });
+  return currentDate >= constraint;
+}
+
+function filterTasksByStartDate({ tasks, currentDate }) {
+  return tasks.filter(task => isTaskStartableByDate({ task, currentDate }));
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -506,6 +527,10 @@ export {
   createReplacement,
   startOnboarding,
   completeOnboarding,
+  hasStartDateConstraint,
+  getStartDateConstraint,
+  isTaskStartableByDate,
+  filterTasksByStartDate,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

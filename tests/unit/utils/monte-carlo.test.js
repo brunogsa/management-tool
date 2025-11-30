@@ -31,6 +31,10 @@ import {
   createReplacement,
   startOnboarding,
   completeOnboarding,
+  hasStartDateConstraint,
+  getStartDateConstraint,
+  isTaskStartableByDate,
+  filterTasksByStartDate,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE } from '../../../src/models.js';
 
@@ -1720,6 +1724,105 @@ describe('Monte Carlo Simulation', () => {
         completeOnboarding({ person, currentWeek, rampUpTimeInWeeks });
 
         expect(person.onboarded).toBe(false);
+      });
+    });
+  });
+
+  describe('Phase 8: Task Start Date Constraints', () => {
+    describe('Step 26: Start date constraint loading', () => {
+      it('should return true when task has start date constraint', () => {
+        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
+        task.onlyStartableAt = new Date('2025-06-15');
+
+        const result = hasStartDateConstraint({ task });
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when task has no start date constraint', () => {
+        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
+
+        const result = hasStartDateConstraint({ task });
+
+        expect(result).toBe(false);
+      });
+
+      it('should parse date constraint correctly', () => {
+        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
+        task.onlyStartableAt = new Date('2025-06-15');
+
+        const constraint = getStartDateConstraint({ task });
+
+        expect(constraint).toEqual(new Date('2025-06-15'));
+      });
+
+      it('should return undefined when no constraint exists', () => {
+        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
+
+        const constraint = getStartDateConstraint({ task });
+
+        expect(constraint).toBeUndefined();
+      });
+    });
+
+    describe('Step 27: Date-based task blocking', () => {
+      it('should exclude task when current date before start constraint', () => {
+        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
+        task.onlyStartableAt = new Date('2025-06-15');
+        const currentDate = new Date('2025-06-10');
+
+        const result = isTaskStartableByDate({ task, currentDate });
+
+        expect(result).toBe(false);
+      });
+
+      it('should include task when current date equals start constraint', () => {
+        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
+        task.onlyStartableAt = new Date('2025-06-15');
+        const currentDate = new Date('2025-06-15');
+
+        const result = isTaskStartableByDate({ task, currentDate });
+
+        expect(result).toBe(true);
+      });
+
+      it('should include task when current date after start constraint', () => {
+        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
+        task.onlyStartableAt = new Date('2025-06-15');
+        const currentDate = new Date('2025-06-20');
+
+        const result = isTaskStartableByDate({ task, currentDate });
+
+        expect(result).toBe(true);
+      });
+
+      it('should include task when no start date constraint', () => {
+        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
+        const currentDate = new Date('2025-06-10');
+
+        const result = isTaskStartableByDate({ task, currentDate });
+
+        expect(result).toBe(true);
+      });
+
+      it('should filter tasks based on date constraints', () => {
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.onlyStartableAt = new Date('2025-06-15');
+
+        const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+        task2.onlyStartableAt = new Date('2025-07-01');
+
+        const task3 = new Task({ id: 't3', title: 'Task 3', type: TASK_TYPE.USER_STORY });
+
+        const tasks = [task1, task2, task3];
+        const currentDate = new Date('2025-06-20');
+
+        const result = filterTasksByStartDate({ tasks, currentDate });
+
+        expect(result).toHaveLength(2);
+        expect(result).toContain(task1);
+        expect(result).toContain(task3);
+        expect(result).not.toContain(task2);
       });
     });
   });

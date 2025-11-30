@@ -15,6 +15,7 @@ import {
   isPersonOnVacation,
   applyVacationToPersonnelCapacity,
   shouldPersonGetSick,
+  generateSickLeaveDuration,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE } from '../../../src/models.js';
 
@@ -1097,6 +1098,73 @@ describe('Monte Carlo Simulation', () => {
         const result = shouldPersonGetSick(sickRate, mockRandom);
 
         expect(result).toBe(true);
+      });
+    });
+
+    describe('Step 17: Sick leave duration', () => {
+      it('should generate duration between 1 and 5', () => {
+        const randomValue = 0.5;
+
+        const duration = generateSickLeaveDuration(randomValue);
+
+        expect(duration).toBeGreaterThanOrEqual(1);
+        expect(duration).toBeLessThanOrEqual(5);
+      });
+
+      it('should generate 1 for very low random value', () => {
+        const randomValue = 0.0;
+
+        const duration = generateSickLeaveDuration(randomValue);
+
+        expect(duration).toBe(1);
+      });
+
+      it('should generate 5 for very high random value', () => {
+        const randomValue = 0.99;
+
+        const duration = generateSickLeaveDuration(randomValue);
+
+        expect(duration).toBe(5);
+      });
+
+      it('should generate 1 for random value in [0, 0.2)', () => {
+        const randomValue = 0.1;
+
+        const duration = generateSickLeaveDuration(randomValue);
+
+        expect(duration).toBe(1);
+      });
+
+      it('should generate 2 for random value in [0.2, 0.4)', () => {
+        const randomValue = 0.3;
+
+        const duration = generateSickLeaveDuration(randomValue);
+
+        expect(duration).toBe(2);
+      });
+
+      it('should generate 3 for random value in [0.4, 0.6)', () => {
+        const randomValue = 0.5;
+
+        const duration = generateSickLeaveDuration(randomValue);
+
+        expect(duration).toBe(3);
+      });
+
+      it('should generate 4 for random value in [0.6, 0.8)', () => {
+        const randomValue = 0.7;
+
+        const duration = generateSickLeaveDuration(randomValue);
+
+        expect(duration).toBe(4);
+      });
+
+      it('should generate 5 for random value in [0.8, 1.0]', () => {
+        const randomValue = 0.9;
+
+        const duration = generateSickLeaveDuration(randomValue);
+
+        expect(duration).toBe(5);
       });
     });
   });

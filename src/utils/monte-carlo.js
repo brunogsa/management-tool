@@ -292,6 +292,10 @@ function shouldPersonGetSick(sickRate, randomValue) {
   return randomValue < sickRate;
 }
 
+function generateSickLeaveDuration(randomValue) {
+  return Math.floor(randomValue * 5) + 1;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -389,6 +393,7 @@ export {
   isPersonOnVacation,
   applyVacationToPersonnelCapacity,
   shouldPersonGetSick,
+  generateSickLeaveDuration,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

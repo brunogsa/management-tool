@@ -263,6 +263,23 @@ function createReworkTask({ task, originalEstimate, tasks }) {
   };
 }
 
+function isPersonOnVacation({ person, currentDate }) {
+  if (!person.vacationsAt || person.vacationsAt.length === 0) {
+    return false;
+  }
+
+  for (const vacation of person.vacationsAt) {
+    const from = new Date(vacation.from);
+    const to = new Date(vacation.to);
+
+    if (currentDate >= from && currentDate <= to) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -357,6 +374,7 @@ export {
   updateSplitDependencies,
   shouldTaskRequireRework,
   createReworkTask,
+  isPersonOnVacation,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

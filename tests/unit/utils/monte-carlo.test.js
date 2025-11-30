@@ -12,6 +12,7 @@ import {
   updateSplitDependencies,
   shouldTaskRequireRework,
   createReworkTask,
+  isPersonOnVacation,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE } from '../../../src/models.js';
 
@@ -847,6 +848,105 @@ describe('Monte Carlo Simulation', () => {
         const result = createReworkTask({ task: original, originalEstimate, tasks: [] });
 
         expect(result.reworkTask.remainingReworkDuration).toBe(0);
+      });
+    });
+  });
+
+  describe('Phase 4: Vacation Scheduling', () => {
+    describe('Step 14: Vacation data loading', () => {
+      it('should return false when person has no vacations', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const currentDate = new Date('2025-06-15');
+
+        const result = isPersonOnVacation({ person, currentDate });
+
+        expect(result).toBe(false);
+      });
+
+      it('should return true when current date falls within vacation period', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        const currentDate = new Date('2025-06-15');
+
+        const result = isPersonOnVacation({ person, currentDate });
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when current date is before vacation', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        const currentDate = new Date('2025-06-05');
+
+        const result = isPersonOnVacation({ person, currentDate });
+
+        expect(result).toBe(false);
+      });
+
+      it('should return false when current date is after vacation', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        const currentDate = new Date('2025-06-25');
+
+        const result = isPersonOnVacation({ person, currentDate });
+
+        expect(result).toBe(false);
+      });
+
+      it('should return true when current date equals vacation start date', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        const currentDate = new Date('2025-06-10');
+
+        const result = isPersonOnVacation({ person, currentDate });
+
+        expect(result).toBe(true);
+      });
+
+      it('should return true when current date equals vacation end date', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        const currentDate = new Date('2025-06-20');
+
+        const result = isPersonOnVacation({ person, currentDate });
+
+        expect(result).toBe(true);
+      });
+
+      it('should check multiple vacation periods', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-15') },
+          { from: new Date('2025-08-01'), to: new Date('2025-08-10') },
+        ];
+        const currentDate = new Date('2025-08-05');
+
+        const result = isPersonOnVacation({ person, currentDate });
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when not in any vacation period', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-15') },
+          { from: new Date('2025-08-01'), to: new Date('2025-08-10') },
+        ];
+        const currentDate = new Date('2025-07-15');
+
+        const result = isPersonOnVacation({ person, currentDate });
+
+        expect(result).toBe(false);
       });
     });
   });

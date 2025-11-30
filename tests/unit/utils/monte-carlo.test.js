@@ -11,6 +11,7 @@ import {
   createSplitTask,
   updateSplitDependencies,
   shouldTaskRequireRework,
+  createReworkTask,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE } from '../../../src/models.js';
 
@@ -762,6 +763,90 @@ describe('Monte Carlo Simulation', () => {
         const result = shouldTaskRequireRework(reworkRate, mockRandom);
 
         expect(result).toBe(false);
+      });
+    });
+
+    describe('Step 13: Rework task generation', () => {
+      it('should create rework task with estimate = original estimate × 0.5', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        const originalEstimate = 8;
+
+        const result = createReworkTask({ task: original, originalEstimate, tasks: [] });
+
+        expect(result.reworkTask.remainingReworkDuration).toBe(originalEstimate * 0.5);
+        expect(result.reworkTask.remainingReworkDuration).toBe(4);
+      });
+
+      it('should create rework task with same properties as original', () => {
+        const original = new Task({ id: 't1', title: 'Original Task', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        const originalEstimate = 8;
+
+        const result = createReworkTask({ task: original, originalEstimate, tasks: [] });
+
+        expect(result.reworkTask.id).toContain('t1-rework');
+        expect(result.reworkTask.title).toBe('Original Task');
+        expect(result.reworkTask.type).toBe(TASK_TYPE.USER_STORY);
+      });
+
+      it('should add rework task to tasks array', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        const tasks = [original];
+        const originalEstimate = 8;
+
+        const result = createReworkTask({ task: original, originalEstimate, tasks });
+
+        expect(result.tasks).toHaveLength(2);
+        expect(result.tasks).toContain(original);
+        expect(result.tasks).toContain(result.reworkTask);
+      });
+
+      it('should copy required skills from original', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        original.requiredSkills = [
+          new Skill({ name: 'Backend', minLevel: LEVEL.SENIOR }),
+          new Skill({ name: 'Database', minLevel: LEVEL.MID }),
+        ];
+        const originalEstimate = 8;
+
+        const result = createReworkTask({ task: original, originalEstimate, tasks: [] });
+
+        expect(result.reworkTask.requiredSkills).toHaveLength(2);
+        expect(result.reworkTask.requiredSkills[0].name).toBe('Backend');
+        expect(result.reworkTask.requiredSkills[1].name).toBe('Database');
+      });
+
+      it('should make rework task depend on original (original blocks rework)', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        const originalEstimate = 8;
+
+        const result = createReworkTask({ task: original, originalEstimate, tasks: [] });
+
+        expect(result.reworkTask.tasksBeingBlocked).toContain(original);
+      });
+
+      it('should initialize rework task with zero remaining duration', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 10;
+        const originalEstimate = 8;
+
+        const result = createReworkTask({ task: original, originalEstimate, tasks: [] });
+
+        expect(result.reworkTask.remainingDuration).toBe(0);
+      });
+
+      it('should handle tasks with zero original estimate', () => {
+        const original = new Task({ id: 't1', title: 'Original', type: TASK_TYPE.USER_STORY });
+        original.remainingDuration = 0;
+        const originalEstimate = 0;
+
+        const result = createReworkTask({ task: original, originalEstimate, tasks: [] });
+
+        expect(result.reworkTask.remainingReworkDuration).toBe(0);
       });
     });
   });

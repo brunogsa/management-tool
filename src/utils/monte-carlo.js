@@ -237,6 +237,32 @@ function shouldTaskRequireRework(reworkRate, randomValue) {
   return randomValue < reworkRate;
 }
 
+function createReworkTask({ task, originalEstimate, tasks }) {
+  // Create new task with same properties
+  const reworkTask = new Task({ id: `${task.id}-rework-${Date.now()}`, title: task.title, type: task.type });
+
+  // Copy properties
+  reworkTask.requiredSkills = [...(task.requiredSkills || [])];
+
+  // Set rework duration to half of original estimate
+  reworkTask.remainingReworkDuration = originalEstimate * 0.5;
+
+  // Initialize remaining duration to 0
+  reworkTask.remainingDuration = 0;
+
+  // Make rework task depend on original (original blocks rework)
+  reworkTask.tasksBeingBlocked = [task];
+
+  // Add to tasks array
+  tasks.push(reworkTask);
+
+  return {
+    task,
+    reworkTask,
+    tasks,
+  };
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -330,6 +356,7 @@ export {
   createSplitTask,
   updateSplitDependencies,
   shouldTaskRequireRework,
+  createReworkTask,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

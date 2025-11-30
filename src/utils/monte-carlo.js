@@ -349,6 +349,15 @@ function shouldPersonQuit(quitRate, randomValue) {
   return randomValue < quitRate;
 }
 
+function markPersonAsDeparted({ person }) {
+  person.hasDeparted = true;
+  person.availableCapacity = 0;
+}
+
+function filterActivePersonnel({ personnel }) {
+  return personnel.filter(person => !person.hasDeparted);
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -457,6 +466,8 @@ export {
   isOnboardingComplete,
   applyOnboardingCapacityReduction,
   shouldPersonQuit,
+  markPersonAsDeparted,
+  filterActivePersonnel,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

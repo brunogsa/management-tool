@@ -26,6 +26,8 @@ import {
   isOnboardingComplete,
   applyOnboardingCapacityReduction,
   shouldPersonQuit,
+  markPersonAsDeparted,
+  filterActivePersonnel,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE } from '../../../src/models.js';
 
@@ -1529,6 +1531,71 @@ describe('Monte Carlo Simulation', () => {
         const result = shouldPersonQuit(quitRate, mockRandom);
 
         expect(result).toBe(true);
+      });
+    });
+
+    describe('Step 23: Personnel departure', () => {
+      it('should mark person as departed', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.availableCapacity = 1;
+
+        markPersonAsDeparted({ person });
+
+        expect(person.hasDeparted).toBe(true);
+      });
+
+      it('should set capacity to 0 when departed', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.availableCapacity = 1;
+
+        markPersonAsDeparted({ person });
+
+        expect(person.availableCapacity).toBe(0);
+      });
+
+      it('should handle person with partial capacity', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.availableCapacity = 0.5;
+
+        markPersonAsDeparted({ person });
+
+        expect(person.hasDeparted).toBe(true);
+        expect(person.availableCapacity).toBe(0);
+      });
+
+      it('should filter out departed personnel', () => {
+        const active = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const departed = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        departed.hasDeparted = true;
+        const personnel = [active, departed];
+
+        const result = filterActivePersonnel({ personnel });
+
+        expect(result).toHaveLength(1);
+        expect(result).toContain(active);
+        expect(result).not.toContain(departed);
+      });
+
+      it('should handle all personnel active', () => {
+        const person1 = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const person2 = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        const personnel = [person1, person2];
+
+        const result = filterActivePersonnel({ personnel });
+
+        expect(result).toHaveLength(2);
+      });
+
+      it('should handle all personnel departed', () => {
+        const person1 = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person1.hasDeparted = true;
+        const person2 = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person2.hasDeparted = true;
+        const personnel = [person1, person2];
+
+        const result = filterActivePersonnel({ personnel });
+
+        expect(result).toHaveLength(0);
       });
     });
   });

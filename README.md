@@ -30,7 +30,7 @@ Generates a Mermaid flowchart diagram visualizing the task dependencies within a
 
 **Learn more:**
 ```
-yarn start tasks-tree --help
+yarn tasks-tree --help
 ```
 
 ### 2. monte-carlo
@@ -39,7 +39,7 @@ Performs a Monte Carlo simulation to predict the probabilistic distribution of t
 
 **Learn more:**
 ```
-yarn start monte-carlo --help
+yarn monte-carlo --help
 ```
 
 ## JSON Input Format
@@ -88,6 +88,7 @@ These types represent executable work items that cannot contain children:
 
 - **`tech-debt`** - Refactoring, cleanup, or technical debt reduction
   - Example: "Refactor authentication module", "Remove deprecated API endpoints"
+:x
 
 - **`improvement`** - Enhancement to existing functionality (performance, UX, etc.)
   - Example: "Optimize image loading performance", "Add keyboard shortcuts"

@@ -115,7 +115,7 @@ async function _startWatchMode(inputJsonFilepath, outputFolderFilepath) {
   });
 
   app.get('/tasks-tree.png', (req, res) => {
-    res.sendFile(`${outputFolderFilepath}/tasks-tree.png`, { root: '/' });
+    res.sendFile(`${outputFolderFilepath}/tasks-tree.png`, { root: process.cwd() });
   });
 
   app.get('/events', (req, res) => {

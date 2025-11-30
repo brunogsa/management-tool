@@ -28,6 +28,7 @@ import {
   shouldPersonQuit,
   markPersonAsDeparted,
   filterActivePersonnel,
+  createReplacement,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE } from '../../../src/models.js';
 
@@ -1596,6 +1597,71 @@ describe('Monte Carlo Simulation', () => {
         const result = filterActivePersonnel({ personnel });
 
         expect(result).toHaveLength(0);
+      });
+    });
+
+    describe('Step 24: Replacement hiring', () => {
+      it('should create replacement with same skills and level', () => {
+        const original = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        original.skills = [
+          new Skill({ name: 'Backend', minLevel: LEVEL.SENIOR }),
+          new Skill({ name: 'Database', minLevel: LEVEL.MID }),
+        ];
+        const currentWeek = 5;
+
+        const replacement = createReplacement({ person: original, currentWeek });
+
+        expect(replacement.level).toBe(LEVEL.SENIOR);
+        expect(replacement.skills).toHaveLength(2);
+        expect(replacement.skills[0].name).toBe('Backend');
+        expect(replacement.skills[1].name).toBe('Database');
+      });
+
+      it('should set replacement as not hired initially', () => {
+        const original = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const currentWeek = 5;
+
+        const replacement = createReplacement({ person: original, currentWeek });
+
+        expect(replacement.hired).toBe(false);
+      });
+
+      it('should set replacement as not onboarded initially', () => {
+        const original = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const currentWeek = 5;
+
+        const replacement = createReplacement({ person: original, currentWeek });
+
+        expect(replacement.onboarded).toBe(false);
+      });
+
+      it('should set hiring start week to current week', () => {
+        const original = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const currentWeek = 5;
+
+        const replacement = createReplacement({ person: original, currentWeek });
+
+        expect(replacement.hiringStartWeek).toBe(5);
+      });
+
+      it('should generate unique ID for replacement', () => {
+        const original = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const currentWeek = 5;
+
+        const replacement = createReplacement({ person: original, currentWeek });
+
+        expect(replacement.id).toContain('p1-replacement');
+      });
+
+      it('should add replacement to personnel array', () => {
+        const original = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        const personnel = [original];
+        const currentWeek = 5;
+
+        const result = createReplacement({ person: original, currentWeek, personnel });
+
+        expect(result.personnel).toHaveLength(2);
+        expect(result.personnel).toContain(result.replacement);
       });
     });
   });

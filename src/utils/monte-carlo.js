@@ -1,5 +1,5 @@
 import { deepClone } from './graph.js';
-import { LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_TASK_SPLIT_RATE, Task } from '../models.js';
+import { LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_TASK_SPLIT_RATE, Task, Person } from '../models.js';
 
 const LEVEL_HIERARCHY = [
   LEVEL.INTERN,
@@ -358,6 +358,29 @@ function filterActivePersonnel({ personnel }) {
   return personnel.filter(person => !person.hasDeparted);
 }
 
+function createReplacement({ person, currentWeek, personnel }) {
+  const replacement = new Person({
+    id: `${person.id}-replacement-${Date.now()}`,
+    name: `${person.name} Replacement`,
+    level: person.level,
+    isHired: false,
+    isOnboarded: false,
+  });
+
+  // Copy skills
+  replacement.skills = [...(person.skills || [])];
+
+  // Set hiring start week
+  replacement.hiringStartWeek = currentWeek;
+
+  // Add to personnel array if provided
+  if (personnel) {
+    personnel.push(replacement);
+  }
+
+  return personnel ? { replacement, personnel } : replacement;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -468,6 +491,7 @@ export {
   shouldPersonQuit,
   markPersonAsDeparted,
   filterActivePersonnel,
+  createReplacement,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

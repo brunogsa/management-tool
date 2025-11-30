@@ -6,6 +6,7 @@ import {
   assignWorkToTask,
   runSingleIteration,
   runMultipleIterations,
+  calculatePercentiles,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE } from '../../../src/models.js';
 
@@ -428,6 +429,53 @@ describe('Monte Carlo Simulation', () => {
         const completionWeeks = result.iterations.map(iter => iter.completionWeek);
         const allSimilar = completionWeeks.every(week => week === completionWeeks[0]);
         expect(allSimilar).toBe(true);
+      });
+    });
+
+    describe('Step 8: Percentile calculation', () => {
+      it('should calculate 50th percentile (median)', () => {
+        const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        const percentiles = calculatePercentiles(values);
+
+        expect(percentiles.p50).toBe(5.5);
+      });
+
+      it('should calculate all required percentiles (50th, 75th, 90th, 95th, 99th)', () => {
+        const values = Array.from({ length: 100 }, (_, i) => i + 1);
+        const percentiles = calculatePercentiles(values);
+
+        expect(percentiles.p50).toBeCloseTo(50.5, 1);
+        expect(percentiles.p75).toBeCloseTo(75.25, 1);
+        expect(percentiles.p90).toBeCloseTo(90.1, 1);
+        expect(percentiles.p95).toBeCloseTo(95.05, 1);
+        expect(percentiles.p99).toBeCloseTo(99.01, 1);
+      });
+
+      it('should handle unsorted input by sorting first', () => {
+        const values = [10, 1, 5, 3, 8, 2, 7, 4, 9, 6];
+        const percentiles = calculatePercentiles(values);
+
+        expect(percentiles.p50).toBe(5.5);
+      });
+
+      it('should handle small datasets', () => {
+        const values = [1, 2, 3];
+        const percentiles = calculatePercentiles(values);
+
+        expect(percentiles.p50).toBeCloseTo(2, 1);
+        expect(percentiles.p75).toBeCloseTo(2.5, 1);
+        expect(percentiles.p90).toBeCloseTo(2.8, 1);
+      });
+
+      it('should handle single value', () => {
+        const values = [42];
+        const percentiles = calculatePercentiles(values);
+
+        expect(percentiles.p50).toBe(42);
+        expect(percentiles.p75).toBe(42);
+        expect(percentiles.p90).toBe(42);
+        expect(percentiles.p95).toBe(42);
+        expect(percentiles.p99).toBe(42);
       });
     });
   });

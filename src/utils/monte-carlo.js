@@ -156,6 +156,31 @@ function runMultipleIterations({ tasks, personnel, numIterations }) {
   };
 }
 
+function _calculatePercentile(sortedValues, percentile) {
+  const index = (percentile / 100) * (sortedValues.length - 1);
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  const weight = index - lower;
+
+  if (lower === upper) {
+    return sortedValues[lower];
+  }
+
+  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+}
+
+function calculatePercentiles(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+
+  return {
+    p50: _calculatePercentile(sorted, 50),
+    p75: _calculatePercentile(sorted, 75),
+    p90: _calculatePercentile(sorted, 90),
+    p95: _calculatePercentile(sorted, 95),
+    p99: _calculatePercentile(sorted, 99),
+  };
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -244,6 +269,7 @@ export {
   assignWorkToTask,
   runSingleIteration,
   runMultipleIterations,
+  calculatePercentiles,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

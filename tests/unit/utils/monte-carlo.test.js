@@ -13,6 +13,7 @@ import {
   shouldTaskRequireRework,
   createReworkTask,
   isPersonOnVacation,
+  applyVacationToPersonnelCapacity,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE } from '../../../src/models.js';
 
@@ -947,6 +948,86 @@ describe('Monte Carlo Simulation', () => {
         const result = isPersonOnVacation({ person, currentDate });
 
         expect(result).toBe(false);
+      });
+    });
+
+    describe('Step 15: Capacity reduction during vacation', () => {
+      it('should set capacity to 0 when person is on vacation', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        person.availableCapacity = 1;
+        const currentDate = new Date('2025-06-15');
+
+        applyVacationToPersonnelCapacity({ personnel: [person], currentDate });
+
+        expect(person.availableCapacity).toBe(0);
+      });
+
+      it('should not modify capacity when person is not on vacation', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        person.availableCapacity = 1;
+        const currentDate = new Date('2025-07-15');
+
+        applyVacationToPersonnelCapacity({ personnel: [person], currentDate });
+
+        expect(person.availableCapacity).toBe(1);
+      });
+
+      it('should handle multiple personnel with different vacation status', () => {
+        const person1 = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person1.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        person1.availableCapacity = 1;
+
+        const person2 = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person2.vacationsAt = [
+          { from: new Date('2025-07-01'), to: new Date('2025-07-10') },
+        ];
+        person2.availableCapacity = 1;
+
+        const currentDate = new Date('2025-06-15');
+
+        applyVacationToPersonnelCapacity({ personnel: [person1, person2], currentDate });
+
+        expect(person1.availableCapacity).toBe(0); // On vacation
+        expect(person2.availableCapacity).toBe(1); // Not on vacation
+      });
+
+      it('should handle personnel with no vacations', () => {
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person.availableCapacity = 1;
+        const currentDate = new Date('2025-06-15');
+
+        applyVacationToPersonnelCapacity({ personnel: [person], currentDate });
+
+        expect(person.availableCapacity).toBe(1);
+      });
+
+      it('should set capacity to 0 for all personnel on vacation', () => {
+        const person1 = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        person1.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        person1.availableCapacity = 1;
+
+        const person2 = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person2.vacationsAt = [
+          { from: new Date('2025-06-10'), to: new Date('2025-06-20') },
+        ];
+        person2.availableCapacity = 1;
+
+        const currentDate = new Date('2025-06-15');
+
+        applyVacationToPersonnelCapacity({ personnel: [person1, person2], currentDate });
+
+        expect(person1.availableCapacity).toBe(0);
+        expect(person2.availableCapacity).toBe(0);
       });
     });
   });

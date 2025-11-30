@@ -280,6 +280,14 @@ function isPersonOnVacation({ person, currentDate }) {
   return false;
 }
 
+function applyVacationToPersonnelCapacity({ personnel, currentDate }) {
+  for (const person of personnel) {
+    if (isPersonOnVacation({ person, currentDate })) {
+      person.availableCapacity = 0;
+    }
+  }
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -375,6 +383,7 @@ export {
   shouldTaskRequireRework,
   createReworkTask,
   isPersonOnVacation,
+  applyVacationToPersonnelCapacity,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

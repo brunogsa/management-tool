@@ -25,8 +25,9 @@ import {
   filterOnboardedPersonnel,
   isOnboardingComplete,
   applyOnboardingCapacityReduction,
+  shouldPersonQuit,
 } from '../../../src/utils/monte-carlo.js';
-import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE } from '../../../src/models.js';
+import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE } from '../../../src/models.js';
 
 describe('Monte Carlo Simulation', () => {
   describe('Phase 1: Simple Simulation Foundation', () => {
@@ -1460,6 +1461,74 @@ describe('Monte Carlo Simulation', () => {
         applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
 
         expect(person.availableCapacity).toBe(0.4); // 0.8 * 0.5
+      });
+    });
+  });
+
+  describe('Phase 7: Turnover and Replacement', () => {
+    describe('Step 22: Weekly quit probability', () => {
+      it('should return true when random value is below quit rate', () => {
+        const mockRandom = 0.001; // 0.1% < 0.301% quit rate
+        const quitRate = 0.00301;
+
+        const result = shouldPersonQuit(quitRate, mockRandom);
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false when random value is above quit rate', () => {
+        const mockRandom = 0.004; // 0.4% > 0.301% quit rate
+        const quitRate = 0.00301;
+
+        const result = shouldPersonQuit(quitRate, mockRandom);
+
+        expect(result).toBe(false);
+      });
+
+      it('should use default quit rate (0.301%)', () => {
+        const mockRandom = 0.002; // 0.2% < 0.301%
+        const quitRate = DEFAULT_WEEKLY_QUIT_CHANCE;
+
+        const result = shouldPersonQuit(quitRate, mockRandom);
+
+        expect(result).toBe(true);
+        expect(quitRate).toBe(0.00301);
+      });
+
+      it('should handle edge case at exactly quit rate', () => {
+        const mockRandom = 0.00301; // Exactly 0.301%
+        const quitRate = 0.00301;
+
+        const result = shouldPersonQuit(quitRate, mockRandom);
+
+        expect(result).toBe(false); // >= means no quit
+      });
+
+      it('should always quit with 100% rate', () => {
+        const mockRandom = 0.99;
+        const quitRate = 1.0;
+
+        const result = shouldPersonQuit(quitRate, mockRandom);
+
+        expect(result).toBe(true);
+      });
+
+      it('should never quit with 0% rate', () => {
+        const mockRandom = 0.0;
+        const quitRate = 0.0;
+
+        const result = shouldPersonQuit(quitRate, mockRandom);
+
+        expect(result).toBe(false);
+      });
+
+      it('should handle very low probability correctly', () => {
+        const mockRandom = 0.00001; // Very small random
+        const quitRate = 0.00301;
+
+        const result = shouldPersonQuit(quitRate, mockRandom);
+
+        expect(result).toBe(true);
       });
     });
   });

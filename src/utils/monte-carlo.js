@@ -345,6 +345,10 @@ function applyOnboardingCapacityReduction({ personnel, currentWeek, rampUpTimeIn
   }
 }
 
+function shouldPersonQuit(quitRate, randomValue) {
+  return randomValue < quitRate;
+}
+
 // TODO: Implement this helper function
 function findBestPersonnelForTask(_task, _personnel) {
   return null;
@@ -452,6 +456,7 @@ export {
   filterOnboardedPersonnel,
   isOnboardingComplete,
   applyOnboardingCapacityReduction,
+  shouldPersonQuit,
   _calculateCompletionDate,
   runMonteCarloSimulation,
 };

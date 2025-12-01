@@ -2,12 +2,32 @@ import { existsSync } from 'fs';
 import { basename } from 'path';
 import express from 'express';
 import open from 'open';
+import createFileWatcher from './file-watcher.js';
 
+
+const SSE_EVENT_END_INDICATOR = '\n\n';
+
+function _buildSSE(event) {
+  return `data: ${event}${SSE_EVENT_END_INDICATOR}`;
+}
+
+const RELOAD_EVENT = _buildSSE('reload');
 
 async function startDiagramViewer(imageFilepath) {
   const app = express();
   const PORT = 3000;
   const imageName = basename(imageFilepath);
+  const clients = [];
+
+  // Watch the image file for changes
+  const watcher = createFileWatcher(imageFilepath);
+  watcher.on('change', (filepath) => {
+    console.log(`Diagram file changed: ${filepath}`);
+    console.log(`Notifying ${clients.length} browser(s)...`);
+    clients.forEach(client => {
+      client.write(RELOAD_EVENT);
+    });
+  });
 
   app.get('/', (req, res) => {
     res.send(`
@@ -94,25 +114,9 @@ async function startDiagramViewer(imageFilepath) {
           // Pan and zoom functionality
           container.addEventListener('wheel', (e) => {
             e.preventDefault();
-
-            // Get mouse position relative to container
-            const rect = container.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            // Calculate position before zoom
-            const beforeZoomX = (mouseX - translateX) / scale;
-            const beforeZoomY = (mouseY - translateY) / scale;
-
-            // Update scale
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            const newScale = Math.max(0.1, Math.min(scale * delta, 10));
-
-            // Adjust translation to keep mouse position fixed
-            translateX = mouseX - beforeZoomX * newScale;
-            translateY = mouseY - beforeZoomY * newScale;
-            scale = newScale;
-
+            scale *= delta;
+            scale = Math.max(0.1, Math.min(scale, 10));
             updateTransform();
             saveState();
           });
@@ -154,6 +158,22 @@ async function startDiagramViewer(imageFilepath) {
             img.style.transform = \`translate(\${translateX}px, \${translateY}px) scale(\${scale})\`;
           }
 
+          eventSource.onmessage = (event) => {
+            console.log('SSE event received:', event.data);
+            if (event.data === 'reload') {
+              console.log('Reloading diagram image...');
+              // Diagram updated, reload image
+              status.textContent = 'Updating...';
+              status.classList.add('reloading');
+              img.src = '/diagram.png?v=' + Date.now();
+              img.onload = () => {
+                console.log('Diagram image reloaded successfully');
+                status.textContent = 'Live';
+                status.classList.remove('reloading');
+              };
+            }
+          };
+
           eventSource.onerror = () => {
             // Server is restarting, show reloading status
             status.textContent = 'Reloading...';
@@ -189,8 +209,13 @@ async function startDiagramViewer(imageFilepath) {
 
     res.write('data: connected\n\n');
 
+    clients.push(res);
+
     req.on('close', () => {
-      // Client disconnected
+      const index = clients.indexOf(res);
+      if (index !== -1) {
+        clients.splice(index, 1);
+      }
     });
   });
 

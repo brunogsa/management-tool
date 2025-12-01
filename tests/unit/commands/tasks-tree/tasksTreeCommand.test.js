@@ -7,7 +7,8 @@ const mockExistsSync = jest.fn();
 const mockRenderImage = jest.fn();
 const mockTasksTreeUseCase = jest.fn();
 const mockStartDiagramViewer = jest.fn();
-const mockStartAutoreloadWatcher = jest.fn();
+const mockCreateFileWatcher = jest.fn();
+const mockRunInWorker = jest.fn();
 
 jest.unstable_mockModule('fs', () => ({
   readFileSync: mockReadFileSync,
@@ -27,8 +28,12 @@ jest.unstable_mockModule('../../../../src/utils/diagram-viewer.js', () => ({
   default: mockStartDiagramViewer,
 }));
 
-jest.unstable_mockModule('../../../../src/utils/autoreload-watcher.js', () => ({
-  default: mockStartAutoreloadWatcher,
+jest.unstable_mockModule('../../../../src/utils/file-watcher.js', () => ({
+  default: mockCreateFileWatcher,
+}));
+
+jest.unstable_mockModule('../../../../src/utils/run-in-worker.js', () => ({
+  default: mockRunInWorker,
 }));
 
 // Import after mocking
@@ -67,6 +72,11 @@ describe('tasksTreeCommand(inputJsonFilepath, outputFolderFilepath, options) -> 
     mockTasksTreeUseCase.mockReturnValue('flowchart TB\n  A[Start]');
     mockWriteFileSync.mockImplementation(() => {});
     mockRenderImage.mockResolvedValue(undefined);
+    mockStartDiagramViewer.mockResolvedValue(undefined);
+    mockCreateFileWatcher.mockReturnValue({
+      on: jest.fn()
+    });
+    mockRunInWorker.mockResolvedValue(undefined);
   });
 
   afterEach(() => {

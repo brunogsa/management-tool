@@ -574,7 +574,7 @@ describe('Monte Carlo Simulation', () => {
         original.remainingDuration = 10;
         original.requiredSkills = [new Skill({ name: 'JavaScript', minLevel: LEVEL.MID })];
 
-        const { originalTask, splitTask, tasks } = createSplitTask({ task: original, tasks: [original] });
+        const { originalTask: _originalTask, splitTask, tasks: _tasks } = createSplitTask({ task: original, tasks: [original] });
 
         expect(splitTask.title).toBe('Original Task');
         expect(splitTask.type).toBe(TASK_TYPE.USER_STORY);

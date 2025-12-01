@@ -6,51 +6,43 @@ A project management simulation tool that helps visualize task dependencies and 
 
 This tool aims to:
 
-1. **Visualize project structure** - Generate dependency graphs showing relationships between tasks, epics, milestones, and projects  
-2. **Simulate project execution** - Use Monte Carlo methods to predict completion dates considering various real-world factors  
-3. **Account for team dynamics** - Model the impact of different skill levels, hiring times, ramp-up periods, sick leave, and turnover  
-4. **Support planning decisions** - Help project managers understand the probabilistic nature of project timelines  
+1. **Visualize project structure** - Generate dependency graphs showing relationships between tasks, epics, milestones, and projects
+2. **Simulate project execution** - Use Monte Carlo methods to predict completion dates considering various real-world factors
+3. **Account for team dynamics** - Model the impact of different skill levels, hiring times, ramp-up periods, sick leave, and turnover
+4. **Support planning decisions** - Help project managers understand the probabilistic nature of project timelines
 
 ## Pre-reqs
 
-Ensure you have `mermaid-cli` installed:
+Ensure you have `mermaid-cli` and `yarn` installed:
 
 ```sh
 npm i -g mermaid-cli
+npm i -g yarn
 ```
 
 ## Tool Functionalities
 
-The tool provides the commands below:
+The tool provides two main commands:
 
 ### 1. tasks-tree
 
-**Purpose:** Generates a Mermaid flowchart diagram visualizing the task dependencies within a project as a Directed Acyclic Graph (DAG).
+Generates a Mermaid flowchart diagram visualizing the task dependencies within a project as a Directed Acyclic Graph (DAG).
 
-**Usage:**
-
+**Learn more:**
 ```
-npm start tasks-tree <input-json-filepath> <output-folder-filepath>
+yarn tasks-tree --help
 ```
-
-**Inputs:**
-- `input-json-filepath`: Path to the JSON file containing the parameters, tasks and personnel data.
-- `output-folder-filepath`: Directory path where the Mermaid code and the rendered image will be saved.
 
 ### 2. monte-carlo
 
-**Purpose:** Performs a Monte Carlo simulation to predict the probabilistic distribution of the project's completion time, considering various parameters like sick rate, turnover rate, and rework rates.
+Performs a Monte Carlo simulation to predict the probabilistic distribution of the project's completion time, considering various parameters like sick rate, turnover rate, and rework rates.
 
-**Usage:**
-
+**Learn more:**
 ```
-npm start monte-carlo <json-input-filepath> <output-filepath>
+yarn monte-carlo --help
 ```
 
-**Inputs:**
-- `json-input-filepath`: Path to the JSON file containing comprehensive project data.
-- `output-filepath`: Directory path where the probabilistic distributions and Gantt charts will be saved.
-
+<<<<<<< HEAD
 **Simulation Features:**
 
 The Monte Carlo simulation models realistic project dynamics through multiple iterations to generate probabilistic completion forecasts:
@@ -133,6 +125,7 @@ These types represent executable work items that cannot contain children:
 
 - **`tech-debt`** - Refactoring, cleanup, or technical debt reduction
   - Example: "Refactor authentication module", "Remove deprecated API endpoints"
+:x
 
 - **`improvement`** - Enhancement to existing functionality (performance, UX, etc.)
   - Example: "Optimize image loading performance", "Add keyboard shortcuts"
@@ -161,7 +154,7 @@ These types represent executable work items that cannot contain children:
 - Mermaid diagram generation for task trees
 - Input validation framework
 - Basic project structure and command interface
-- Monte Carlo simulation engine with skill matching, task splits, rework, vacations, sick leave, hiring/onboarding, turnover, and Gantt output  
+- Monte Carlo simulation engine with skill matching, task splits, rework, vacations, sick leave, hiring/onboarding, turnover, and Gantt output
 
 ### Pending Implementation
 

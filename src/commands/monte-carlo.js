@@ -1,99 +1,49 @@
 import { readFileSync, writeFileSync } from 'fs';
 
-import inputValidator from '../utils/input-validator.js';
-import {
-  deepClone,
-  getTaskMap,
-  attachAllDescendantsFromParentProps,
-  attachBlockedTasksFromDependsOnProps,
-  populateContainerEstimates,
-} from '../utils/graph.js';
-import { runMonteCarloSimulation } from '../utils/monte-carlo.js';
-import { generateGanttChart } from '../utils/mermaid-code-generator.js';
+import monteCarloUseCase from '../use-cases/monte-carlo.js';
 import renderImage from '../utils/image-renderer.js';
 
-async function monteCarlo(inputJsonFilepath, outputFilepath) {
+
+async function _generateGanttOutputFiles(ganttCharts, outputFilepath) {
+  const renderPromises = ganttCharts.map(async ({ identifier, mermaidCode }) => {
+    const diagramName = `simulation_${identifier}`;
+    const diagramFilepath = `${outputFilepath}/${diagramName}.mmd`;
+
+    writeFileSync(diagramFilepath, mermaidCode);
+
+    await renderImage(
+      diagramFilepath,
+      diagramName,
+      outputFilepath,
+    );
+  });
+
+  await Promise.all(renderPromises);
+}
+
+async function monteCarloCommand(inputJsonFilepath, outputFilepath) {
   try {
     const inputData = JSON.parse(
       readFileSync(inputJsonFilepath, 'utf8')
     );
-    inputValidator(inputData);
 
-    const data = deepClone(inputData);
-    data.taskMap = getTaskMap(data.tasks);
+    console.log('Running Monte Carlo simulation...');
 
-    attachAllDescendantsFromParentProps(data.tasks, data.taskMap);
-    attachBlockedTasksFromDependsOnProps(data.tasks, data.taskMap);
-    populateContainerEstimates(data.tasks, data.taskMap);
+    const { listOfSimulations, ganttCharts } = monteCarloUseCase(inputData);
 
-    const listOfSimulations = runMonteCarloSimulation(
-      inputData.tasks,
-      inputData.personnel,
-      inputData.globalParams,
-    );
+    console.log('Monte Carlo simulation completed successfully!');
 
-    console.log(
-      'Monte Carlo simulation completed successfully!',
-    );
+    console.debug(JSON.stringify(listOfSimulations, null, 2));
 
-    console.debug(
-      JSON.stringify(listOfSimulations, null, 2),
-    );
+    console.log('Generating Gantt charts...');
 
-    console.log('Analyzing simulations..');
+    await _generateGanttOutputFiles(ganttCharts, outputFilepath);
 
-    // TODO: Check the percentiles of the durations (sprints)
-    const duration50th = 20;
-    const duration75th = 25;
-    const duration90th = 30;
-    const duration95th = 35;
-    const duration99th = 40;
-
-    const exemplaryFor50th = listOfSimulations.find((simulation) => simulation.sprints.length === duration50th);
-    const exemplaryFor75th = listOfSimulations.find((simulation) => simulation.sprints.length === duration75th);
-    const exemplaryFor90th = listOfSimulations.find((simulation) => simulation.sprints.length === duration90th);
-    const exemplaryFor95th = listOfSimulations.find((simulation) => simulation.sprints.length === duration95th);
-    const exemplaryFor99th = listOfSimulations.find((simulation) => simulation.sprints.length === duration99th);
-    //
-    console.log('Generating Gantt charts..');
-
-    [
-      [ exemplaryFor50th, '50th' ],
-      [ exemplaryFor75th, '75th' ],
-      [ exemplaryFor90th, '90th' ],
-      [ exemplaryFor95th, '95th' ],
-      [ exemplaryFor99th, '99th' ],
-
-    ].forEach(async ([ resultingSprints, identifier ]) => {
-
-      const mermaidCode = generateGanttChart(
-        resultingSprints,
-      );
-
-      const diagramName = `simulation_${identifier}`;
-
-      writeFileSync(
-        `${outputFilepath}/${diagramName}.mmd`,
-        mermaidCode,
-      );
-
-      await renderImage(
-        mermaidCode,
-        diagramName,
-        outputFilepath,
-      );
-    });
-
-    console.log(
-      'Gantt charts successfully generated!',
-    );
+    console.log('Gantt charts successfully generated!');
 
   } catch (error) {
-    console.error(
-      'Failed to perform Monte Carlo simulation:',
-      error,
-    );
+    console.error('Failed to perform Monte Carlo simulation:', error);
   }
 }
 
-export default monteCarlo;
+export default monteCarloCommand;

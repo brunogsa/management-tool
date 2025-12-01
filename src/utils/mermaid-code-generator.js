@@ -46,19 +46,15 @@ function _getNodeDeclaration(task, timeAndEstimateUnit) {
   return node;
 }
 
-let numOfChildEdges = 0;
 function _getChildEdge(taskId, dependencyId) {
-  numOfChildEdges++;
   return `${taskId} -.- ${dependencyId}`;
 }
 
-let numOfDepEdges = 0;
 function _getDependencyEdge(taskId, dependencyId) {
-  numOfDepEdges++;
-  return `${taskId} ==> ${dependencyId}`;
+  return `${taskId} ==>|blocks| ${dependencyId}`;
 }
 
-function _styleDepsAsRed(diagram) {
+function _styleDepsAsRed({ diagram, numOfChildEdges, numOfDepEdges }) {
   for (let i = 0; i < numOfDepEdges; i++) {
     diagram += IDENT + `linkStyle ${numOfChildEdges + i} stroke:#ff6961,color:red;` + LINE_BREAK;
   }
@@ -79,9 +75,11 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
 
   diagram += LINE_BREAK;
 
+  let numOfChildEdges = 0;
   tasks.forEach(task => {
     task.children.forEach((childId) => {
       diagram += IDENT + _getChildEdge(task.id, childId) + LINE_BREAK;
+      numOfChildEdges++;
     });
 
     diagram += LINE_BREAK;
@@ -89,9 +87,11 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
 
   diagram += LINE_BREAK;
 
+  let numOfDepEdges = 0;
   tasks.forEach(task => {
     task.tasksBeingBlocked.forEach((taskBeingBlocked) => {
       diagram += IDENT + _getDependencyEdge(task.id, taskBeingBlocked) + LINE_BREAK;
+      numOfDepEdges++;
     });
 
     diagram += LINE_BREAK;
@@ -99,7 +99,7 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
 
   diagram += LINE_BREAK;
 
-  diagram = _styleDepsAsRed(diagram);
+  diagram = _styleDepsAsRed({ diagram, numOfChildEdges, numOfDepEdges });
 
   return diagram;
 }

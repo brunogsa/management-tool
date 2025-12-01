@@ -44,13 +44,14 @@ import {
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE, DEFAULT_TIME_TO_HIRE, DEFAULT_TIME_TO_RAMPUP } from '../../../src/models.js';
 
 // Helper to create default globalParams for tests
+// Note: Creates deep copies to prevent test isolation issues
 const createDefaultGlobalParams = () => ({
-  velocityByLevel: DEFAULT_VELOCITY_RATE,
-  reworkRateByLevel: DEFAULT_REWORK_RATE,
+  velocityByLevel: { ...DEFAULT_VELOCITY_RATE },
+  reworkRateByLevel: { ...DEFAULT_REWORK_RATE },
   sickRate: DEFAULT_WEEKLY_SICK_CHANCE,
   turnOverRate: DEFAULT_WEEKLY_QUIT_CHANCE,
-  timeToHireByLevel: DEFAULT_TIME_TO_HIRE,
-  timeToRampUpByLevel: DEFAULT_TIME_TO_RAMPUP,
+  timeToHireByLevel: { ...DEFAULT_TIME_TO_HIRE },
+  timeToRampUpByLevel: { ...DEFAULT_TIME_TO_RAMPUP },
 });
 
 describe('Monte Carlo Simulation', () => {
@@ -514,7 +515,7 @@ describe('Monte Carlo Simulation', () => {
         const createTasks = () => {
           const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
           task1.remainingDuration = 2;
-        task1.remainingReworkDuration = 0;
+          task1.remainingReworkDuration = 0;
           task1.mostProbableEstimateInRange = 2;
           task1.tasksBeingBlocked = [];
           task1.allTasksBeingBlocked = [];
@@ -548,7 +549,7 @@ describe('Monte Carlo Simulation', () => {
         const createTasks = () => {
           const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
           task1.remainingDuration = 1;
-        task1.remainingReworkDuration = 0;
+          task1.remainingReworkDuration = 0;
           task1.mostProbableEstimateInRange = 1;
           task1.dependsOnTasks = [];
           task1.tasksBeingBlocked = [];
@@ -558,7 +559,7 @@ describe('Monte Carlo Simulation', () => {
 
           const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
           task2.remainingDuration = 2;
-        task2.remainingReworkDuration = 0;
+          task2.remainingReworkDuration = 0;
           task2.mostProbableEstimateInRange = 2;
           task2.dependsOnTasks = [];
           task2.tasksBeingBlocked = [];
@@ -597,7 +598,7 @@ describe('Monte Carlo Simulation', () => {
         const createTasks = () => {
           const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
           task1.remainingDuration = 2;
-        task1.remainingReworkDuration = 0;
+          task1.remainingReworkDuration = 0;
           task1.mostProbableEstimateInRange = 2;
           task1.tasksBeingBlocked = [];
           task1.allTasksBeingBlocked = [];

@@ -226,7 +226,9 @@ function populateContainerEstimates(tasks, taskMap) {
 
 function attachBlockingCounts(tasks) {
   for (const task of tasks) {
-    task.totalNumOfBlocks = task.allTasksBeingBlocked ? task.allTasksBeingBlocked.length : 0;
+    task.totalNumOfBlocks = (task.allTasksBeingBlocked && Array.isArray(task.allTasksBeingBlocked))
+      ? task.allTasksBeingBlocked.length
+      : 0;
   }
 }
 

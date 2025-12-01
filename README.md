@@ -42,7 +42,6 @@ Performs a Monte Carlo simulation to predict the probabilistic distribution of t
 yarn monte-carlo --help
 ```
 
-<<<<<<< HEAD
 **Simulation Features:**
 
 The Monte Carlo simulation models realistic project dynamics through multiple iterations to generate probabilistic completion forecasts:

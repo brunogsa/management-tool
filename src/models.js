@@ -93,6 +93,9 @@ class Task {
   }
 
   accountWork(spentDuration, reworkRateToConsider) {
+    if (typeof reworkRateToConsider !== 'number' || isNaN(reworkRateToConsider)) {
+      throw new Error('reworkRateToConsider must be a valid number');
+    }
     if (this.remainingDuration === undefined) {
       this.remainingDuration = 0;
     }

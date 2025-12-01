@@ -5,9 +5,16 @@ import {
   attachAllDescendantsFromParentProps,
   attachBlockedTasksFromDependsOnProps,
   populateContainerEstimates,
+  attachBlockingCounts,
 } from '../utils/graph.js';
-import { runMonteCarloSimulation } from '../utils/monte-carlo.js';
-import { generateGanttChart } from '../utils/mermaid-code-generator.js';
+import {
+  runMultipleIterations,
+  calculatePercentiles,
+  findIterationForPercentile,
+  generateGanttChartCode,
+  generateChangeRequests,
+  injectChangeRequestsIntoTaskList,
+} from '../utils/monte-carlo.js';
 
 
 function monteCarloUseCase(inputData) {
@@ -16,41 +23,75 @@ function monteCarloUseCase(inputData) {
   const data = deepClone(inputData);
   data.taskMap = getTaskMap(data.tasks);
 
+  // Populate graph
   attachAllDescendantsFromParentProps(data.tasks, data.taskMap);
   attachBlockedTasksFromDependsOnProps(data.tasks, data.taskMap);
   populateContainerEstimates(data.tasks, data.taskMap);
+  attachBlockingCounts(data.tasks);
 
-  const listOfSimulations = runMonteCarloSimulation(
-    inputData.tasks,
-    inputData.personnel,
-    inputData.globalParams,
-  );
+  // Generate change requests
+  const { changeRequestMilestone, changeRequestTasks } = generateChangeRequests({
+    tasks: data.tasks,
+    splitRate: inputData.globalParams.taskSplitRate,
+  });
 
-  // TODO: Check the percentiles of the durations (sprints)
-  const duration50th = 20;
-  const duration75th = 25;
-  const duration90th = 30;
-  const duration95th = 35;
-  const duration99th = 40;
+  if (changeRequestMilestone) {
+    injectChangeRequestsIntoTaskList({
+      tasks: data.tasks,
+      taskMap: data.taskMap,
+      changeRequestMilestone,
+      changeRequestTasks,
+    });
 
-  const exemplaryFor50th = listOfSimulations.find((simulation) => simulation.sprints.length === duration50th);
-  const exemplaryFor75th = listOfSimulations.find((simulation) => simulation.sprints.length === duration75th);
-  const exemplaryFor90th = listOfSimulations.find((simulation) => simulation.sprints.length === duration90th);
-  const exemplaryFor95th = listOfSimulations.find((simulation) => simulation.sprints.length === duration95th);
-  const exemplaryFor99th = listOfSimulations.find((simulation) => simulation.sprints.length === duration99th);
+    // Re-run graph calculations
+    attachAllDescendantsFromParentProps(data.tasks, data.taskMap);
+    attachBlockedTasksFromDependsOnProps(data.tasks, data.taskMap);
+    populateContainerEstimates(data.tasks, data.taskMap);
+    attachBlockingCounts(data.tasks);
+  }
 
-  const ganttCharts = [
-    { simulation: exemplaryFor50th, identifier: '50th' },
-    { simulation: exemplaryFor75th, identifier: '75th' },
-    { simulation: exemplaryFor90th, identifier: '90th' },
-    { simulation: exemplaryFor95th, identifier: '95th' },
-    { simulation: exemplaryFor99th, identifier: '99th' },
-  ].map(({ simulation, identifier }) => ({
-    identifier,
-    mermaidCode: generateGanttChart(simulation),
-  }));
+  // Initialize task remaining durations
+  for (const task of data.tasks) {
+    task.remainingDuration = task.mostProbableEstimateInRange || 0;
+    task.remainingReworkDuration = 0;
+  }
 
-  return { listOfSimulations, ganttCharts };
+  // Run simulations
+  const startDate = new Date(inputData.globalParams.startDate);
+  const { iterations } = runMultipleIterations({
+    tasks: () => deepClone(data.tasks),
+    personnel: () => deepClone(inputData.personnel),
+    numIterations: inputData.globalParams.numOfMonteCarloIterations,
+    globalParams: inputData.globalParams,
+    startDate,
+  });
+
+  // Calculate percentiles
+  const completionWeeks = iterations.map(iter => iter.completionWeek);
+  const percentiles = calculatePercentiles(completionWeeks);
+
+  // Generate Gantt charts for key percentiles
+  const percentilesOfInterest = [50, 75, 90, 95, 99];
+  const ganttCharts = percentilesOfInterest.map(percentile => {
+    const iteration = findIterationForPercentile({ iterations, percentile });
+
+    return {
+      identifier: `${percentile}th`,
+      mermaidCode: generateGanttChartCode({
+        iteration,
+        tasks: data.tasks,
+        personnel: inputData.personnel,
+        title: `${percentile}th Percentile Timeline (Week ${iteration.completionWeek})`,
+        startDate,
+      }),
+    };
+  });
+
+  return {
+    listOfSimulations: iterations,
+    percentiles,
+    ganttCharts,
+  };
 }
 
 export default monteCarloUseCase;

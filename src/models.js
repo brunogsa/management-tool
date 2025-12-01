@@ -103,15 +103,19 @@ class Task {
     if (this.remainingDuration >= spentDuration) {
       this.remainingDuration -= spentDuration;
       this.remainingReworkDuration += spentDuration *  reworkRateToConsider;
+      this.remainingReworkDuration = Math.round(this.remainingReworkDuration * 1e10) / 1e10;
 
       return;
     }
 
-    const spentAux = this.remainingDuration;
+    const spentOnOriginal = this.remainingDuration;
     this.remainingDuration = 0;
-    this.remainingReworkDuration += spentAux *  reworkRateToConsider;
+    this.remainingReworkDuration += spentOnOriginal *  reworkRateToConsider;
 
-    // Then, consume the remaining from the rework itself
+    // Then, consume the remaining from the rework itself (WITHOUT generating more rework)
+    const spentOnRework = spentDuration - spentOnOriginal;
+    this.remainingReworkDuration = Math.max(0, this.remainingReworkDuration - spentOnRework);
+    this.remainingReworkDuration = Math.round(this.remainingReworkDuration * 1e10) / 1e10;
   }
 
   isDone() {
@@ -149,7 +153,7 @@ class Vacation {
 }
 
 class Person {
-  constructor({ id, name, level, isHired, isOnboarded }) {
+  constructor({ id, name, level, isHired, isOnboarded, startDate }) {
     if (!Object.values(LEVEL).includes(level)) {
       throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
     }
@@ -167,12 +171,16 @@ class Person {
     // Vacation[]
     this.vacationsAt = [];
 
+    // Optional start date (when person becomes available)
+    this.startDate = startDate ? new Date(startDate) : undefined;
+
     // Props agreggated during runtime
 
     // Undefined | Number
     this.numOfAssignedTasks = undefined;
     this.availableCapacity = undefined;
     this.remainingReplacementDuration = undefined;
+    this.hireWeek = undefined;
   }
 };
 

@@ -224,6 +224,12 @@ function populateContainerEstimates(tasks, taskMap) {
   });
 }
 
+function attachBlockingCounts(tasks) {
+  for (const task of tasks) {
+    task.totalNumOfBlocks = task.allTasksBeingBlocked ? task.allTasksBeingBlocked.length : 0;
+  }
+}
+
 export {
   deepClone,
   _setToArray,
@@ -235,4 +241,5 @@ export {
   attachAllDescendantsFromParentProps,
   attachBlockedTasksFromDependsOnProps,
   populateContainerEstimates,
+  attachBlockingCounts,
 };

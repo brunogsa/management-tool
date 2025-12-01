@@ -184,14 +184,14 @@ describe('Task', () => {
         expect(task.remainingDuration).toBe(0);
       });
 
-      // TODO: Should be: it('should add (spentDuration * reworkRateToConsider) to remainingReworkDuration'
-      it('should add (remainingDuration * reworkRateToConsider) to remainingReworkDuration', () => {
+      it('should consume from both original and rework when spentDuration exceeds remainingDuration', () => {
         const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
         task.remainingDuration = 5;
         task.remainingReworkDuration = 2;
         task.accountWork(10, 0.2);
-        // Only 5 of the 10 spent goes to rework: 5 * 0.2 = 1, so 2 + 1 = 3
-        expect(task.remainingReworkDuration).toBe(3);
+        // 5 of the 10 spent goes to original (generates 5 * 0.2 = 1 rework), so rework becomes 2 + 1 = 3
+        // Remaining 5 units consume from rework: 3 - 5 = 0 (clamped to 0)
+        expect(task.remainingReworkDuration).toBe(0);
       });
 
       // TODO: Should be: it('should not consume remainingReworkDuration with leftover spentDuration'
@@ -250,6 +250,64 @@ describe('Task', () => {
         task.accountWork(2, 0.1);
         expect(task.remainingDuration).toBe(5); // 10 - 3 - 2 = 5
         expect(task.remainingReworkDuration).toBe(0.5); // (3 + 2) * 0.1 = 0.5
+      });
+    });
+
+    describe('consuming rework duration (FIXED behavior)', () => {
+      it('should not generate rework when consuming rework duration', () => {
+        const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
+        task.remainingDuration = 3;
+        task.remainingReworkDuration = 0;
+
+        // First, consume original and generate rework
+        task.accountWork(3, 0.2);
+        expect(task.remainingDuration).toBe(0);
+        expect(task.remainingReworkDuration).toBe(0.6);
+
+        // Then, consume rework - should NOT generate more rework
+        task.accountWork(0.5, 0.2);
+        expect(task.remainingDuration).toBe(0);
+        expect(task.remainingReworkDuration).toBe(0.1);
+      });
+
+      it('should consume original duration then rework duration in sequence', () => {
+        const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
+        task.remainingDuration = 5;
+        task.remainingReworkDuration = 0;
+
+        // Spend 8 units: 5 on original (generates 0.5 rework), then 3 on rework
+        task.accountWork(8, 0.1);
+
+        expect(task.remainingDuration).toBe(0);
+        // Original 5 generated 0.5 rework, then we consumed 3 from rework (leaving 0)
+        expect(task.remainingReworkDuration).toBe(0);
+      });
+
+      it('should not allow negative rework duration', () => {
+        const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
+        task.remainingDuration = 1;
+        task.remainingReworkDuration = 0;
+
+        // Spend 10 units: 1 on original (generates 0.1 rework), then 9 on rework (more than available)
+        task.accountWork(10, 0.1);
+
+        expect(task.remainingDuration).toBe(0);
+        expect(task.remainingReworkDuration).toBe(0);
+      });
+
+      it('should mark task as done after consuming all work including rework', () => {
+        const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
+        task.remainingDuration = 10;
+        task.remainingReworkDuration = 0;
+
+        // Consume all original (generates rework)
+        task.accountWork(10, 0.2);
+        expect(task.isDone()).toBe(false);
+        expect(task.remainingReworkDuration).toBe(2);
+
+        // Consume all rework
+        task.accountWork(2, 0.2);
+        expect(task.isDone()).toBe(true);
       });
     });
   });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import {
   initializeSimulationState,
+  recordWeeklyWork,
   findStartableTasks,
   isPersonQualifiedForTask,
   assignWorkToTask,
@@ -40,7 +41,17 @@ import {
   extractPercentilesTimeline,
   generateGanttChartCode,
 } from '../../../src/utils/monte-carlo.js';
-import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE } from '../../../src/models.js';
+import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE, DEFAULT_TIME_TO_HIRE, DEFAULT_TIME_TO_RAMPUP } from '../../../src/models.js';
+
+// Helper to create default globalParams for tests
+const createDefaultGlobalParams = () => ({
+  velocityByLevel: DEFAULT_VELOCITY_RATE,
+  reworkRateByLevel: DEFAULT_REWORK_RATE,
+  sickRate: DEFAULT_WEEKLY_SICK_CHANCE,
+  turnOverRate: DEFAULT_WEEKLY_QUIT_CHANCE,
+  timeToHireByLevel: DEFAULT_TIME_TO_HIRE,
+  timeToRampUpByLevel: DEFAULT_TIME_TO_RAMPUP,
+});
 
 describe('Monte Carlo Simulation', () => {
   describe('Phase 1: Simple Simulation Foundation', () => {
@@ -57,6 +68,78 @@ describe('Monte Carlo Simulation', () => {
 
         expect(state.currentWeek).toBe(1);
       });
+
+      it('should initialize workedWeeks as empty array', () => {
+        const state = initializeSimulationState();
+
+        expect(state.workedWeeks).toEqual([]);
+        expect(Array.isArray(state.workedWeeks)).toBe(true);
+      });
+    });
+
+    describe('Step 1.5: Weekly work tracking', () => {
+      it('should create new week entry if not exists', () => {
+        const state = initializeSimulationState();
+        state.currentWeek = 1;
+
+        const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task.remainingDuration = 5;
+        task.remainingReworkDuration = 0;
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+
+        recordWeeklyWork({ state, task, person, workDone: 2 });
+
+        expect(state.workedWeeks).toHaveLength(1);
+        expect(state.workedWeeks[0].weekNumber).toBe(1);
+        expect(state.workedWeeks[0].assignments).toHaveLength(1);
+      });
+
+      it('should append to existing week entry', () => {
+        const state = initializeSimulationState();
+        state.currentWeek = 1;
+
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.remainingDuration = 5;
+        task1.remainingReworkDuration = 0;
+        task1.remainingReworkDuration = 0;
+
+        const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+        task2.remainingDuration = 3;
+        task2.remainingReworkDuration = 0;
+        task2.remainingReworkDuration = 0;
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+
+        recordWeeklyWork({ state, task: task1, person, workDone: 2 });
+        recordWeeklyWork({ state, task: task2, person, workDone: 1 });
+
+        expect(state.workedWeeks).toHaveLength(1);
+        expect(state.workedWeeks[0].assignments).toHaveLength(2);
+      });
+
+      it('should record all assignment details correctly', () => {
+        const state = initializeSimulationState();
+        state.currentWeek = 3;
+
+        const task = new Task({ id: 't1', title: 'Implement Feature X', type: TASK_TYPE.USER_STORY });
+        task.remainingDuration = 5;
+        task.remainingReworkDuration = 0.5;
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+
+        recordWeeklyWork({ state, task, person, workDone: 2.5 });
+
+        const assignment = state.workedWeeks[0].assignments[0];
+        expect(assignment.taskId).toBe('t1');
+        expect(assignment.taskTitle).toBe('Implement Feature X');
+        expect(assignment.personId).toBe('p1');
+        expect(assignment.personName).toBe('Alice');
+        expect(assignment.personLevel).toBe(LEVEL.SENIOR);
+        expect(assignment.workDone).toBe(2.5);
+        expect(assignment.taskRemainingDuration).toBe(5);
+        expect(assignment.taskRemainingRework).toBe(0.5);
+      });
     });
 
     describe('Step 2: Task startability detection', () => {
@@ -64,10 +147,12 @@ describe('Monte Carlo Simulation', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.tasksBeingBlocked = [];
         task1.remainingDuration = 5;
+        task1.remainingReworkDuration = 0;
 
         const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
         task2.tasksBeingBlocked = [];
         task2.remainingDuration = 3;
+        task2.remainingReworkDuration = 0;
 
         const tasks = [task1, task2];
         const startable = findStartableTasks(tasks);
@@ -80,9 +165,11 @@ describe('Monte Carlo Simulation', () => {
       it('should find tasks with all dependencies completed as startable', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.remainingDuration = 0; // completed
+        task1.remainingReworkDuration = 0;
 
         const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
         task2.remainingDuration = 5;
+        task2.remainingReworkDuration = 0;
         task2.tasksBeingBlocked = [task1]; // depends on task1
 
         const tasks = [task1, task2];
@@ -95,10 +182,12 @@ describe('Monte Carlo Simulation', () => {
       it('should not find tasks with incomplete dependencies as startable', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.remainingDuration = 3; // not completed
+        task1.remainingReworkDuration = 0;
 
         const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
         task2.remainingDuration = 5;
-        task2.tasksBeingBlocked = [task1]; // depends on incomplete task1
+        task2.remainingReworkDuration = 0;
+        task2.dependsOnTasks = ['t1']; // depends on incomplete task1
 
         const tasks = [task1, task2];
         const startable = findStartableTasks(tasks);
@@ -111,6 +200,7 @@ describe('Monte Carlo Simulation', () => {
       it('should not include already completed tasks as startable', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.remainingDuration = 0;
+        task1.remainingReworkDuration = 0;
         task1.tasksBeingBlocked = [];
 
         const tasks = [task1];
@@ -289,12 +379,24 @@ describe('Monte Carlo Simulation', () => {
       it('should run simulation until all tasks are complete', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.remainingDuration = 2;
+        task1.remainingReworkDuration = 0;
+        task1.remainingReworkDuration = 0;
+        task1.mostProbableEstimateInRange = 2;
+        task1.dependsOnTasks = [];
         task1.tasksBeingBlocked = [];
+        task1.allTasksBeingBlocked = [];
+        task1.totalNumOfBlocks = 0;
         task1.requiredSkills = [];
 
         const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
         task2.remainingDuration = 3;
+        task2.remainingReworkDuration = 0;
+        task2.remainingReworkDuration = 0;
+        task2.mostProbableEstimateInRange = 3;
+        task2.dependsOnTasks = [];
         task2.tasksBeingBlocked = [];
+        task2.allTasksBeingBlocked = [];
+        task2.totalNumOfBlocks = 0;
         task2.requiredSkills = [];
 
         const tasks = [task1, task2];
@@ -305,7 +407,10 @@ describe('Monte Carlo Simulation', () => {
 
         const personnel = [person];
 
-        const result = runSingleIteration({ tasks, personnel });
+        const globalParams = createDefaultGlobalParams();
+        const startDate = new Date('2025-01-01');
+
+        const result = runSingleIteration({ tasks, personnel, globalParams, startDate });
 
         expect(result.completionWeek).toBeGreaterThan(0);
         expect(task1.isDone()).toBe(true);
@@ -315,7 +420,13 @@ describe('Monte Carlo Simulation', () => {
       it('should track completion dates for each task', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.remainingDuration = 1;
+        task1.remainingReworkDuration = 0;
+        task1.remainingReworkDuration = 0;
+        task1.mostProbableEstimateInRange = 1;
+        task1.dependsOnTasks = [];
         task1.tasksBeingBlocked = [];
+        task1.allTasksBeingBlocked = [];
+        task1.totalNumOfBlocks = 0;
         task1.requiredSkills = [];
 
         const tasks = [task1];
@@ -326,7 +437,10 @@ describe('Monte Carlo Simulation', () => {
 
         const personnel = [person];
 
-        const result = runSingleIteration({ tasks, personnel });
+        const globalParams = createDefaultGlobalParams();
+        const startDate = new Date('2025-01-01');
+
+        const result = runSingleIteration({ tasks, personnel, globalParams, startDate });
 
         expect(result.taskCompletionDates).toBeDefined();
         expect(result.taskCompletionDates.t1).toBeGreaterThan(0);
@@ -335,12 +449,21 @@ describe('Monte Carlo Simulation', () => {
       it('should handle dependent tasks in correct order', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.remainingDuration = 2;
+        task1.remainingReworkDuration = 0;
+        task1.mostProbableEstimateInRange = 2;
         task1.tasksBeingBlocked = [];
+        task1.allTasksBeingBlocked = [];
+        task1.totalNumOfBlocks = 0;
         task1.requiredSkills = [];
 
         const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
         task2.remainingDuration = 2;
-        task2.tasksBeingBlocked = [task1];
+        task2.remainingReworkDuration = 0;
+        task2.mostProbableEstimateInRange = 2;
+        task2.dependsOnTasks = ['t1'];
+        task2.tasksBeingBlocked = [];
+        task2.allTasksBeingBlocked = [];
+        task2.totalNumOfBlocks = 0;
         task2.requiredSkills = [];
 
         const tasks = [task1, task2];
@@ -351,7 +474,10 @@ describe('Monte Carlo Simulation', () => {
 
         const personnel = [person];
 
-        const result = runSingleIteration({ tasks, personnel });
+        const globalParams = createDefaultGlobalParams();
+        const startDate = new Date('2025-01-01');
+
+        const result = runSingleIteration({ tasks, personnel, globalParams, startDate });
 
         expect(result.taskCompletionDates.t1).toBeLessThan(result.taskCompletionDates.t2);
       });
@@ -359,7 +485,11 @@ describe('Monte Carlo Simulation', () => {
       it('should increment week counter during simulation', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.remainingDuration = 5;
+        task1.remainingReworkDuration = 0;
+        task1.mostProbableEstimateInRange = 5;
         task1.tasksBeingBlocked = [];
+        task1.allTasksBeingBlocked = [];
+        task1.totalNumOfBlocks = 0;
         task1.requiredSkills = [];
 
         const tasks = [task1];
@@ -370,7 +500,10 @@ describe('Monte Carlo Simulation', () => {
 
         const personnel = [person];
 
-        const result = runSingleIteration({ tasks, personnel });
+        const globalParams = createDefaultGlobalParams();
+        const startDate = new Date('2025-01-01');
+
+        const result = runSingleIteration({ tasks, personnel, globalParams, startDate });
 
         expect(result.completionWeek).toBeGreaterThan(1);
       });
@@ -381,7 +514,11 @@ describe('Monte Carlo Simulation', () => {
         const createTasks = () => {
           const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
           task1.remainingDuration = 2;
+        task1.remainingReworkDuration = 0;
+          task1.mostProbableEstimateInRange = 2;
           task1.tasksBeingBlocked = [];
+          task1.allTasksBeingBlocked = [];
+          task1.totalNumOfBlocks = 0;
           task1.requiredSkills = [];
           return [task1];
         };
@@ -392,10 +529,15 @@ describe('Monte Carlo Simulation', () => {
           return [person];
         };
 
+        const globalParams = createDefaultGlobalParams();
+        const startDate = new Date('2025-01-01');
+
         const result = runMultipleIterations({
           tasks: createTasks,
           personnel: createPersonnel,
           numIterations: 5,
+          globalParams,
+          startDate,
         });
 
         expect(result.iterations).toHaveLength(5);
@@ -406,12 +548,22 @@ describe('Monte Carlo Simulation', () => {
         const createTasks = () => {
           const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
           task1.remainingDuration = 1;
+        task1.remainingReworkDuration = 0;
+          task1.mostProbableEstimateInRange = 1;
+          task1.dependsOnTasks = [];
           task1.tasksBeingBlocked = [];
+          task1.allTasksBeingBlocked = [];
+          task1.totalNumOfBlocks = 0;
           task1.requiredSkills = [];
 
           const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
           task2.remainingDuration = 2;
+        task2.remainingReworkDuration = 0;
+          task2.mostProbableEstimateInRange = 2;
+          task2.dependsOnTasks = [];
           task2.tasksBeingBlocked = [];
+          task2.allTasksBeingBlocked = [];
+          task2.totalNumOfBlocks = 0;
           task2.requiredSkills = [];
 
           return [task1, task2];
@@ -423,10 +575,15 @@ describe('Monte Carlo Simulation', () => {
           return [person];
         };
 
+        const globalParams = createDefaultGlobalParams();
+        const startDate = new Date('2025-01-01');
+
         const result = runMultipleIterations({
           tasks: createTasks,
           personnel: createPersonnel,
           numIterations: 3,
+          globalParams,
+          startDate,
         });
 
         expect(result.iterations).toHaveLength(3);
@@ -440,7 +597,11 @@ describe('Monte Carlo Simulation', () => {
         const createTasks = () => {
           const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
           task1.remainingDuration = 2;
+        task1.remainingReworkDuration = 0;
+          task1.mostProbableEstimateInRange = 2;
           task1.tasksBeingBlocked = [];
+          task1.allTasksBeingBlocked = [];
+          task1.totalNumOfBlocks = 0;
           task1.requiredSkills = [];
           return [task1];
         };
@@ -451,10 +612,15 @@ describe('Monte Carlo Simulation', () => {
           return [person];
         };
 
+        const globalParams = createDefaultGlobalParams();
+        const startDate = new Date('2025-01-01');
+
         const result = runMultipleIterations({
           tasks: createTasks,
           personnel: createPersonnel,
           numIterations: 10,
+          globalParams,
+          startDate,
         });
 
         // All iterations should have similar completion times (since tasks are identical)
@@ -1898,17 +2064,35 @@ describe('Monte Carlo Simulation', () => {
 
     describe('Step 29: Gantt chart rendering', () => {
       it('should generate Mermaid Gantt chart code from task timeline', () => {
-        const taskCompletionDates = {
-          't1': 5,
-          't2': 10,
+        const iteration = {
+          taskCompletionDates: {
+            't1': 5,
+            't2': 10,
+          },
+          workedWeeks: [
+            { weekNumber: 1, assignments: [{ taskId: 't1', personId: 'p1', workDone: 3 }] },
+            { weekNumber: 2, assignments: [{ taskId: 't1', personId: 'p1', workDone: 2 }] },
+            { weekNumber: 3, assignments: [{ taskId: 't2', personId: 'p1', workDone: 5 }] },
+          ],
         };
 
-        const tasks = [
-          new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY }),
-          new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY }),
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.mostProbableEstimateInRange = 5;
+        task1.remainingReworkDuration = 0;
+
+        const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+        task2.mostProbableEstimateInRange = 5;
+        task2.remainingReworkDuration = 0;
+
+        const tasks = [task1, task2];
+
+        const personnel = [
+          new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true }),
         ];
 
-        const code = generateGanttChartCode({ taskCompletionDates, tasks, title: 'P50 Timeline' });
+        const startDate = new Date('2025-01-01');
+
+        const code = generateGanttChartCode({ iteration, tasks, personnel, title: 'P50 Timeline', startDate });
 
         expect(code).toContain('gantt');
         expect(code).toContain('title P50 Timeline');
@@ -1917,18 +2101,36 @@ describe('Monte Carlo Simulation', () => {
       });
 
       it('should handle tasks with dependencies in Gantt chart', () => {
-        const taskCompletionDates = {
-          't1': 5,
-          't2': 10,
+        const iteration = {
+          taskCompletionDates: {
+            't1': 5,
+            't2': 10,
+          },
+          workedWeeks: [
+            { weekNumber: 1, assignments: [{ taskId: 't1', personId: 'p1', workDone: 3 }] },
+            { weekNumber: 2, assignments: [{ taskId: 't1', personId: 'p1', workDone: 2 }] },
+            { weekNumber: 6, assignments: [{ taskId: 't2', personId: 'p1', workDone: 5 }] },
+          ],
         };
 
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.mostProbableEstimateInRange = 5;
+        task1.remainingReworkDuration = 0;
+
         const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
         task2.dependsOnTasks = ['t1'];
+        task2.mostProbableEstimateInRange = 5;
+        task2.remainingReworkDuration = 0;
 
         const tasks = [task1, task2];
 
-        const code = generateGanttChartCode({ taskCompletionDates, tasks, title: 'Timeline' });
+        const personnel = [
+          new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true }),
+        ];
+
+        const startDate = new Date('2025-01-01');
+
+        const code = generateGanttChartCode({ iteration, tasks, personnel, title: 'Timeline', startDate });
 
         expect(code).toContain('gantt');
         expect(code).toContain('Task 1');

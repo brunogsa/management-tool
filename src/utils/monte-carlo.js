@@ -1,5 +1,15 @@
 import { deepClone } from './graph.js';
-import { LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_TASK_SPLIT_RATE, Task, Person } from '../models.js';
+import {
+  LEVEL,
+  DEFAULT_VELOCITY_RATE,
+  DEFAULT_TASK_SPLIT_RATE,
+  DEFAULT_WEEKLY_SICK_CHANCE,
+  DEFAULT_WEEKLY_QUIT_CHANCE,
+  Task,
+  Person,
+  TASK_TYPE,
+  isContainerTask
+} from '../models.js';
 
 const LEVEL_HIERARCHY = [
   LEVEL.INTERN,
@@ -20,13 +30,43 @@ function _isLevelSufficient(personLevel, requiredLevel) {
 function initializeSimulationState() {
   return {
     currentWeek: 0,
+    workedWeeks: [],
   };
 }
 
+function recordWeeklyWork({ state, task, person, workDone }) {
+  let weekEntry = state.workedWeeks.find(w => w.weekNumber === state.currentWeek);
+
+  if (!weekEntry) {
+    weekEntry = { weekNumber: state.currentWeek, assignments: [] };
+    state.workedWeeks.push(weekEntry);
+  }
+
+  weekEntry.assignments.push({
+    taskId: task.id,
+    taskTitle: task.title,
+    personId: person.id,
+    personName: person.name,
+    personLevel: person.level,
+    workDone,
+    taskRemainingDuration: task.remainingDuration,
+    taskRemainingRework: task.remainingReworkDuration,
+  });
+}
+
 function findStartableTasks(tasks) {
+  // Create a map for quick lookup
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
+
   return tasks.filter(task => {
-    const isNotCompleted = task.remainingDuration > 0;
-    const allDependenciesCompleted = !task.tasksBeingBlocked || task.tasksBeingBlocked.every(dep => dep.remainingDuration === 0);
+    // Task must have remaining work
+    const isNotCompleted = task.remainingDuration > 0 || task.remainingReworkDuration > 0;
+
+    // All dependencies must be complete
+    const allDependenciesCompleted = !task.dependsOnTasks || task.dependsOnTasks.length === 0 || task.dependsOnTasks.every(depId => {
+      const depTask = taskMap.get(depId);
+      return depTask && depTask.isDone();
+    });
 
     return isNotCompleted && allDependenciesCompleted;
   });
@@ -73,47 +113,127 @@ function assignWorkToTask({ task, person, weeksOfWork }) {
   return actualWork;
 }
 
-function runSingleIteration({ tasks, personnel }) {
+function runSingleIteration({ tasks, personnel, globalParams, startDate }) {
   const state = initializeSimulationState();
   const taskCompletionDates = {};
   const MAX_WEEKS = 1000;
 
+  // Initialize personnel hire weeks
+  for (const person of personnel) {
+    if (!person.hireWeek && person.hired && person.onboarded) {
+      person.hireWeek = 0;
+    }
+  }
+
   while (state.currentWeek < MAX_WEEKS) {
     state.currentWeek++;
 
-    // Reset personnel capacity each week
+    const currentDate = _addWeeksToDate(startDate, state.currentWeek);
+
+    // Schedule automatic vacations periodically
+    if (state.currentWeek % 52 === 0) {
+      scheduleAutomaticVacations({ personnel, currentWeek: state.currentWeek, startDate });
+    }
+
+    // Reset personnel capacity
     for (const person of personnel) {
       person.availableCapacity = 1;
     }
 
-    // Find startable tasks
-    const startableTasks = findStartableTasks(tasks);
+    // Apply vacation capacity reduction
+    applyVacationToPersonnelCapacity({ personnel, currentDate });
 
-    if (startableTasks.length === 0) {
-      // Check if all tasks are done
-      const allDone = tasks.every(task => task.isDone());
-      if (allDone) {
-        break;
+    // Process sick leave
+    for (const person of personnel) {
+      if (shouldPersonGetSick(globalParams.sickRate || DEFAULT_WEEKLY_SICK_CHANCE, Math.random())) {
+        person.availableCapacity = 0;
       }
     }
 
-    // Assign work to tasks
-    for (const task of startableTasks) {
-      for (const person of personnel) {
-        if (person.availableCapacity <= 0) {
-          continue;
-        }
+    // Process turnover
+    for (const person of personnel) {
+      if (!person.hasDeparted && shouldPersonQuit(globalParams.turnOverRate || DEFAULT_WEEKLY_QUIT_CHANCE, Math.random())) {
+        markPersonAsDeparted({ person });
+        createReplacement({ person, currentWeek: state.currentWeek, personnel });
+      }
+    }
 
-        if (!isPersonQualifiedForTask({ person, task })) {
-          continue;
-        }
+    // Process hiring completion
+    for (const person of personnel) {
+      const hiringTime = globalParams.timeToHireByLevel[person.level];
+      completeHiring({ person, currentWeek: state.currentWeek, hiringTimeInWeeks: hiringTime });
+    }
 
-        assignWorkToTask({ task, person, weeksOfWork: person.availableCapacity });
+    // Start onboarding
+    for (const person of personnel) {
+      const hiringTime = globalParams.timeToHireByLevel[person.level];
+      if (isHiringComplete({ person, currentWeek: state.currentWeek, hiringTimeInWeeks: hiringTime })) {
+        startOnboarding({ person, currentWeek: state.currentWeek, hiringTimeInWeeks: hiringTime });
+      }
+    }
 
-        // Track completion
-        if (task.isDone() && !taskCompletionDates[task.id]) {
-          taskCompletionDates[task.id] = state.currentWeek;
-        }
+    // Process onboarding completion
+    for (const person of personnel) {
+      const rampUpTime = globalParams.timeToRampUpByLevel[person.level];
+      completeOnboarding({ person, currentWeek: state.currentWeek, rampUpTimeInWeeks: rampUpTime });
+    }
+
+    // Apply onboarding capacity reduction
+    const maxRampUpTime = Math.max(...Object.values(globalParams.timeToRampUpByLevel));
+    applyOnboardingCapacityReduction({ personnel, currentWeek: state.currentWeek, rampUpTimeInWeeks: maxRampUpTime });
+
+    // Filter available personnel
+    const availablePersonnel = personnel.filter(p =>
+      isPersonHired({ person: p }) &&
+      isPersonOnboarded({ person: p }) &&
+      !p.hasDeparted &&
+      p.availableCapacity > 0 &&
+      isPersonAvailableByDate({ person: p, currentDate, globalParams })
+    );
+
+    // Find startable tasks
+    let startableTasks = findStartableTasks(tasks);
+
+    // Filter by date constraints
+    startableTasks = filterTasksByStartDate({ tasks: startableTasks, currentDate });
+
+    if (startableTasks.length === 0) {
+      const allDone = tasks.every(task => task.isDone());
+      if (allDone) break;
+      continue;
+    }
+
+    // Assign tasks to personnel using heuristic
+    const assignments = assignTasksToPersonnel({
+      tasks: startableTasks,
+      personnel: availablePersonnel,
+    });
+
+    // Execute assignments
+    for (const { task, assignedPerson } of assignments) {
+      const reworkRate = globalParams.reworkRateByLevel[assignedPerson.level];
+      const velocityRate = globalParams.velocityByLevel[assignedPerson.level];
+
+      const actualWeeksUsed = Math.min(
+        assignedPerson.availableCapacity,
+        (task.remainingDuration + task.remainingReworkDuration) / velocityRate
+      );
+
+      const actualWork = actualWeeksUsed * velocityRate;
+      task.accountWork(actualWork, reworkRate);
+      assignedPerson.availableCapacity -= actualWeeksUsed;
+
+      // Record weekly work
+      recordWeeklyWork({
+        state,
+        task,
+        person: assignedPerson,
+        workDone: actualWork,
+      });
+
+      // Track completion
+      if (task.isDone() && !taskCompletionDates[task.id]) {
+        taskCompletionDates[task.id] = state.currentWeek;
       }
     }
   }
@@ -121,10 +241,11 @@ function runSingleIteration({ tasks, personnel }) {
   return {
     completionWeek: state.currentWeek,
     taskCompletionDates,
+    workedWeeks: state.workedWeeks,
   };
 }
 
-function runMultipleIterations({ tasks, personnel, numIterations }) {
+function runMultipleIterations({ tasks, personnel, numIterations, globalParams, startDate }) {
   const iterations = [];
 
   for (let i = 0; i < numIterations; i++) {
@@ -146,6 +267,8 @@ function runMultipleIterations({ tasks, personnel, numIterations }) {
     const result = runSingleIteration({
       tasks: tasksCopy,
       personnel: personnelCopy,
+      globalParams,
+      startDate,
     });
 
     iterations.push(result);
@@ -447,22 +570,289 @@ function extractPercentilesTimeline({ iterations, percentiles }) {
   });
 }
 
-function generateGanttChartCode({ taskCompletionDates, tasks, title }) {
+function _formatGanttDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function generateGanttChartCode({ iteration, tasks, personnel, title, startDate }) {
+  const { taskCompletionDates, workedWeeks } = iteration;
+
   let code = 'gantt\n';
   code += `    title ${title}\n`;
   code += '    dateFormat YYYY-MM-DD\n';
+
+  // Section: Tasks with assignments
   code += '    section Tasks\n';
 
-  // Generate entries for each task
   for (const task of tasks) {
+    if (isContainerTask(task.type)) continue;
+
     const completionWeek = taskCompletionDates[task.id];
-    if (completionWeek !== undefined) {
-      // Simple representation: show task completion week
-      code += `    ${task.title} :${task.id}, 2025-01-01, ${completionWeek}w\n`;
+    if (completionWeek === undefined) continue;
+
+    // Find work assignments for this task
+    const taskAssignments = [];
+    for (const week of workedWeeks) {
+      const assignment = week.assignments.find(a => a.taskId === task.id);
+      if (assignment) {
+        taskAssignments.push({
+          week: week.weekNumber,
+          person: assignment.personName,
+          personId: assignment.personId,
+        });
+      }
+    }
+
+    if (taskAssignments.length === 0) continue;
+
+    // Calculate task metadata
+    const initialEstimate = task.mostProbableEstimateInRange || 0;
+    const finalRework = task.remainingReworkDuration || 0;
+    const blockingCount = task.totalNumOfBlocks || 0;
+
+    // Build label with metadata
+    const label = `${task.title} [Est:${initialEstimate.toFixed(1)}, Rework:${finalRework.toFixed(1)}, Blocks:${blockingCount}]`;
+
+    // Generate Gantt entry
+    const startWeek = taskAssignments[0].week;
+    const startDateStr = _formatGanttDate(_addWeeksToDate(startDate, startWeek));
+    const endDateStr = _formatGanttDate(_addWeeksToDate(startDate, completionWeek));
+
+    code += `    ${label} :${task.id}, ${startDateStr}, ${endDateStr}\n`;
+  }
+
+  // Section: Vacations
+  code += '    section Vacations\n';
+  for (const person of personnel) {
+    if (!person.vacationsAt || person.vacationsAt.length === 0) continue;
+
+    for (let i = 0; i < person.vacationsAt.length; i++) {
+      const vacation = person.vacationsAt[i];
+      const fromStr = _formatGanttDate(vacation.from);
+      const toStr = _formatGanttDate(vacation.to);
+      code += `    ${person.name} vacation :crit, vacation-${person.id}-${i}, ${fromStr}, ${toStr}\n`;
     }
   }
 
   return code;
+}
+
+function sortTasksByPriority(tasks) {
+  return [...tasks].sort((a, b) => {
+    // First priority: finish what we started (tasks with work done)
+    const aInProgress = a.mostProbableEstimateInRange > 0 && a.remainingDuration < a.mostProbableEstimateInRange;
+    const bInProgress = b.mostProbableEstimateInRange > 0 && b.remainingDuration < b.mostProbableEstimateInRange;
+
+    if (aInProgress && !bInProgress) return -1;
+    if (!aInProgress && bInProgress) return 1;
+
+    // Second priority: tasks that block the most other tasks (greedy)
+    const blocksA = a.totalNumOfBlocks || 0;
+    const blocksB = b.totalNumOfBlocks || 0;
+    return blocksB - blocksA;
+  });
+}
+
+function _sortPersonnelBySeniority(personnel) {
+  const LEVEL_RANK = {
+    specialist: 5,
+    senior: 4,
+    mid: 3,
+    junior: 2,
+    intern: 1,
+  };
+
+  return [...personnel].sort((a, b) => {
+    return (LEVEL_RANK[b.level] || 0) - (LEVEL_RANK[a.level] || 0);
+  });
+}
+
+function assignTasksToPersonnel({ tasks, personnel }) {
+  // TODO: Improve heuristic to consider skill affinity, workload balancing,
+  // learning curves, and task switching penalties. See README TODO section.
+
+  const assignments = [];
+  const assignedTasks = new Set();
+  const assignedPersonnel = new Set();
+
+  const prioritizedTasks = sortTasksByPriority(tasks);
+  const sortedPersonnel = _sortPersonnelBySeniority(personnel);
+
+  for (const task of prioritizedTasks) {
+    if (assignedTasks.has(task.id)) continue;
+
+    for (const person of sortedPersonnel) {
+      if (assignedPersonnel.has(person.id)) continue;
+      if (person.availableCapacity <= 0) continue;
+      if (!isPersonQualifiedForTask({ person, task })) continue;
+
+      assignments.push({ task, assignedPerson: person });
+      assignedTasks.add(task.id);
+      assignedPersonnel.add(person.id);
+      break;
+    }
+  }
+
+  return assignments;
+}
+
+function generateChangeRequests({ tasks, splitRate }) {
+  const userStories = tasks.filter(t => t.type === TASK_TYPE.USER_STORY);
+
+  if (userStories.length === 0 || !splitRate || splitRate === 0) {
+    return { changeRequestMilestone: null, changeRequestTasks: [] };
+  }
+
+  const avgEstimate = userStories.reduce((sum, t) => sum + (t.mostProbableEstimateInRange || 0), 0) / userStories.length;
+
+  const leafTasks = tasks.filter(t => !isContainerTask(t.type));
+  const totalEffort = leafTasks.reduce((sum, t) => sum + (t.mostProbableEstimateInRange || 0), 0);
+
+  const totalChangeEffort = totalEffort * splitRate;
+  const numChangeRequests = Math.ceil(totalChangeEffort / avgEstimate);
+
+  const changeRequestMilestone = new Task({
+    id: 'milestone-change-requests',
+    title: 'Change Requests',
+    type: TASK_TYPE.MILESTONE,
+  });
+  changeRequestMilestone.fibonacciEstimate = 0;
+  changeRequestMilestone.mostProbableEstimateInRange = 0;
+  changeRequestMilestone.parents = [];
+
+  changeRequestMilestone.dependsOnTasks = tasks
+    .filter(t => t.type === TASK_TYPE.MILESTONE && t.id !== 'milestone-change-requests')
+    .map(t => t.id);
+
+  const changeRequestTasks = [];
+  for (let i = 1; i <= numChangeRequests; i++) {
+    const crTask = new Task({
+      id: `change-request-${i}`,
+      title: `Change Request: ${i}`,
+      type: TASK_TYPE.USER_STORY,
+    });
+    crTask.fibonacciEstimate = Math.ceil(avgEstimate);
+    crTask.mostProbableEstimateInRange = avgEstimate;
+    crTask.remainingDuration = avgEstimate;
+    crTask.parents = [changeRequestMilestone.id];
+    crTask.dependsOnTasks = [];
+    crTask.requiredSkills = [];
+
+    changeRequestTasks.push(crTask);
+  }
+
+  return { changeRequestMilestone, changeRequestTasks };
+}
+
+function injectChangeRequestsIntoTaskList({ tasks, taskMap, changeRequestMilestone, changeRequestTasks }) {
+  tasks.push(changeRequestMilestone);
+  tasks.push(...changeRequestTasks);
+
+  taskMap.set(changeRequestMilestone.id, changeRequestMilestone);
+  changeRequestTasks.forEach(cr => taskMap.set(cr.id, cr));
+
+  const project = tasks.find(t => t.type === TASK_TYPE.PROJECT);
+  if (project) {
+    changeRequestMilestone.parents = [project.id];
+  }
+}
+
+const WEEKS_PER_YEAR = 52;
+const AUTO_VACATION_WEEKS = 4;
+
+function _calculateWeeksBetween(startDate, targetDate) {
+  const diffMs = targetDate.getTime() - startDate.getTime();
+  return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+}
+
+function _addWeeksToDate(date, weeks) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + weeks * 7);
+  return result;
+}
+
+function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
+  const vacationCalendar = new Map();
+
+  for (const person of personnel) {
+    if (!person.vacationsAt) continue;
+
+    for (const vacation of person.vacationsAt) {
+      const fromWeek = _calculateWeeksBetween(startDate, vacation.from);
+      const toWeek = _calculateWeeksBetween(startDate, vacation.to);
+
+      for (let week = fromWeek; week <= toWeek; week++) {
+        vacationCalendar.set(week, person.id);
+      }
+    }
+  }
+
+  for (const person of personnel) {
+    if (!person.hireWeek) continue;
+
+    const weeksEmployed = currentWeek - person.hireWeek;
+    const yearsEmployed = Math.floor(weeksEmployed / WEEKS_PER_YEAR);
+
+    const expectedVacationWeeks = yearsEmployed * AUTO_VACATION_WEEKS;
+
+    if (!person.vacationsAt) {
+      person.vacationsAt = [];
+    }
+
+    const assignedWeeks = person.vacationsAt.reduce((sum, v) => {
+      const diffMs = v.to.getTime() - v.from.getTime();
+      const diffWeeks = Math.ceil(diffMs / (7 * 24 * 60 * 60 * 1000));
+      return sum + diffWeeks;
+    }, 0);
+
+    const missingWeeks = expectedVacationWeeks - assignedWeeks;
+
+    if (missingWeeks > 0) {
+      let candidateStartWeek = currentWeek + 1;
+
+      while (true) {
+        let conflictFound = false;
+
+        for (let week = candidateStartWeek; week < candidateStartWeek + missingWeeks; week++) {
+          if (vacationCalendar.has(week)) {
+            conflictFound = true;
+            candidateStartWeek = week + 1;
+            break;
+          }
+        }
+
+        if (!conflictFound) {
+          const fromDate = _addWeeksToDate(startDate, candidateStartWeek);
+          const toDate = _addWeeksToDate(startDate, candidateStartWeek + missingWeeks - 1);
+
+          person.vacationsAt.push({ from: fromDate, to: toDate });
+
+          for (let week = candidateStartWeek; week < candidateStartWeek + missingWeeks; week++) {
+            vacationCalendar.set(week, person.id);
+          }
+
+          break;
+        }
+      }
+    }
+  }
+}
+
+function isPersonAvailableByDate({ person, currentDate, globalParams }) {
+  if (!person.startDate) {
+    return true;
+  }
+
+  const hiringTime = globalParams.timeToHireByLevel[person.level];
+  const rampUpTime = globalParams.timeToRampUpByLevel[person.level];
+  const totalWeeksNeeded = hiringTime + rampUpTime;
+
+  const availableDate = _addWeeksToDate(person.startDate, totalWeeksNeeded);
+
+  return currentDate >= availableDate;
 }
 
 // TODO: Implement this helper function
@@ -548,12 +938,19 @@ function runMonteCarloSimulation(tasks, personnel, globalParams) {
 
 export {
   initializeSimulationState,
+  recordWeeklyWork,
   findStartableTasks,
   isPersonQualifiedForTask,
   assignWorkToTask,
   runSingleIteration,
   runMultipleIterations,
   calculatePercentiles,
+  sortTasksByPriority,
+  assignTasksToPersonnel,
+  generateChangeRequests,
+  injectChangeRequestsIntoTaskList,
+  scheduleAutomaticVacations,
+  isPersonAvailableByDate,
   shouldTaskSplit,
   createSplitTask,
   updateSplitDependencies,

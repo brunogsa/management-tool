@@ -156,11 +156,42 @@ These types represent executable work items that cannot contain children:
 - Basic project structure and command interface
 - Monte Carlo simulation engine with skill matching, task splits, rework, vacations, sick leave, hiring/onboarding, turnover, and Gantt output
 
-### Pending Implementation
+### Completed Implementation
 
-The Monte Carlo simulation has been implemented with the following refinements needed:
+The Monte Carlo simulation is fully implemented with:
 
-- Review how each feature is modeled in the current monte carlo implementation
-- Ensure personnel have a property "startDate" (for modeling new hires during project)
-- Review how each feature appears in Gantt chart for a human to understand and learn from the simulation
-- Ensure tasks are assigned and prioritized in an optional way (heuristic must be discussed with the human user)  
+- ✅ Multi-iteration execution with percentile analysis (50th, 75th, 90th, 95th, 99th)
+- ✅ Time tracking with weekly progression
+- ✅ Task dependency and startability detection
+- ✅ Skill-based personnel matching with minimum level requirements
+- ✅ Velocity factors by skill level
+- ✅ Task prioritization: "Finish what we started" philosophy (in-progress tasks first, then by blocking count)
+- ✅ Rework modeling (skill-based rates, consumed without generating more rework)
+- ✅ Vacation scheduling (manual + automatic 4-week annual vacations with max 1 person per week)
+- ✅ Sick leave simulation (0.0389% weekly probability, 1-week duration)
+- ✅ Hiring & onboarding with capacity reduction during ramp-up
+- ✅ Turnover & automatic replacement
+- ✅ Task start date constraints (onlyStartableAt field)
+- ✅ Change Request milestone generation (scope changes as percentage of total effort)
+- ✅ Personnel startDate support (for modeling new hires during project)
+- ✅ Enhanced Gantt charts showing estimates, rework, blocking counts, and vacations
+
+## TODOs
+
+### Task Assignment Heuristic Improvements
+
+The current simulation uses a simple greedy heuristic in `assignTasksToPersonnel()` that:
+1. **First priority**: Finishes in-progress tasks (tasks where work has already begun)
+2. **Second priority**: Assigns most senior available person to highest-priority task (by blocking count)
+
+This works well but could be enhanced with:
+
+- **Skill affinity scoring**: Prefer people with exact skill matches or experience in similar tasks
+- **Workload balancing**: Avoid overloading the same person repeatedly; distribute work more evenly
+- **Learning curve modeling**: People get faster on repeated similar tasks (velocity increases)
+- **Task switching penalties**: Account for context switching costs when jumping between different task types
+- **Parallel work support**: Allow configurable tasks that multiple people can work on simultaneously
+
+See `assignTasksToPersonnel()` in `src/utils/monte-carlo.js` (lines ~511-546) for current implementation.
+
+**Why the simple heuristic is OK for now:** The greedy approach provides a reasonable baseline and ensures all personnel are utilized efficiently. The "finish what we started" rule reduces WIP and is more realistic than starting everything in parallel. More sophisticated heuristics require additional data (historical velocity, task similarity metrics) that may not always be available.

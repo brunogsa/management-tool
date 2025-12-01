@@ -198,7 +198,7 @@ describe('generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) -> str
 
       const result = generateTasksTreeFlowchart([blocker, blocked], new Map([['us1', blocker], ['us2', blocked]]), TIME_UNITS.WEEKS);
 
-      expect(result).toContain('us1 ==> us2');
+      expect(result).toContain('us1 ==>|blocks| us2');
     });
 
     it('should generate multiple dependency edges when task blocks multiple tasks', () => {
@@ -227,8 +227,8 @@ describe('generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) -> str
       const taskMap = new Map([['us1', blocker], ['us2', blocked1], ['us3', blocked2]]);
       const result = generateTasksTreeFlowchart(tasks, taskMap, TIME_UNITS.WEEKS);
 
-      expect(result).toContain('us1 ==> us2');
-      expect(result).toContain('us1 ==> us3');
+      expect(result).toContain('us1 ==>|blocks| us2');
+      expect(result).toContain('us1 ==>|blocks| us3');
     });
 
     it('should style dependency edges as red using linkStyle', () => {
@@ -300,7 +300,7 @@ describe('generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) -> str
       expect(result).toContain('epic1 -.- us2');
 
       // Verify dependency edge
-      expect(result).toContain('us1 ==> us2');
+      expect(result).toContain('us1 ==>|blocks| us2');
 
       // Verify styling
       expect(result).toContain('linkStyle');

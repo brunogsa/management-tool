@@ -1,5 +1,5 @@
 import { Task, TASK_TYPE } from '../../../../src/models.js';
-import { _highlightOrphanTasks } from '../../../../src/commands/tasks-tree.js';
+import { _highlightOrphanTasks } from '../../../../src/use-cases/tasks-tree.js';
 
 describe('_highlightOrphanTasks(tasks, taskMap) -> void (mutates tasks and taskMap)', () => {
   describe('orphan detection for basic tasks (user stories, bugs, etc.)', () => {

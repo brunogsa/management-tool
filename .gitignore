@@ -131,4 +131,5 @@ dist
 
 inputs/*
 outputs/*
+test-output/*
 .aider*

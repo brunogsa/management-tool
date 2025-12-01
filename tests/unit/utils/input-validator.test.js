@@ -401,6 +401,76 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
       };
       expect(() => inputValidator(input)).toThrow();
     });
+
+    it('should throw error when task title contains opening parenthesis', () => {
+      const input = {
+        ...validInput,
+        tasks: [{
+          id: 't1',
+          title: 'Test (with parenthesis',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3
+        }]
+      };
+      expect(() => inputValidator(input)).toThrow();
+    });
+
+    it('should throw error when task title contains closing parenthesis', () => {
+      const input = {
+        ...validInput,
+        tasks: [{
+          id: 't1',
+          title: 'Test with) parenthesis',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3
+        }]
+      };
+      expect(() => inputValidator(input)).toThrow();
+    });
+
+    it('should throw error when task title contains both parentheses', () => {
+      const input = {
+        ...validInput,
+        tasks: [{
+          id: 't1',
+          title: 'Test (with parentheses)',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3
+        }]
+      };
+      expect(() => inputValidator(input)).toThrow();
+    });
+
+    it('should accept task title without parentheses', () => {
+      const input = {
+        ...validInput,
+        tasks: [{
+          id: 't1',
+          title: 'Test without parentheses',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3
+        }]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should accept task title with dashes instead of parentheses', () => {
+      const input = {
+        ...validInput,
+        tasks: [{
+          id: 't1',
+          title: 'Research OAuth 2.0 providers - Google, GitHub, Auth0',
+          type: TASK_TYPE.SPIKE,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3
+        }]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
   });
 
   describe('personnel validation', () => {

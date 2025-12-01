@@ -61,6 +61,7 @@ const definitions = {
       },
       title: {
         type: 'string',
+        pattern: '^[^()]*$',
       },
       type: {
         type: 'string',

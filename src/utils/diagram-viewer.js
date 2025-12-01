@@ -27,6 +27,7 @@ async function startDiagramViewer(imageFilepath) {
     clients.forEach(client => {
       client.write(RELOAD_EVENT);
     });
+    console.log('SSE reload event sent successfully');
   });
 
   app.get('/', (req, res) => {

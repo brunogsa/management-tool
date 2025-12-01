@@ -4,8 +4,10 @@ import tasksTreeUseCase from '../use-cases/tasks-tree.js';
 import renderImage from '../utils/image-renderer.js';
 import startDiagramViewer from '../utils/diagram-viewer.js';
 import createFileWatcher from '../utils/file-watcher.js';
+import runInWorker from '../utils/run-in-worker.js';
 
 
+const thisModuleFilepath = import.meta.filename;
 const DIAGRAM_NAME = 'tasks-tree';
 
 async function _generateDiagramOutputFiles(mermaidCode, outputFolderFilepath) {
@@ -39,10 +41,16 @@ async function tasksTreeCommand(inputJsonFilepath, outputFolderFilepath, options
       await startDiagramViewer(imageFilepath);
 
       const watcher = createFileWatcher([inputJsonFilepath, srcPath]);
-      watcher.on('change', (filepath) => {
+      watcher.on('change', async (filepath) => {
         console.log(`File changed: ${filepath}`);
         console.log('Regenerating diagram...');
-        tasksTreeCommand(inputJsonFilepath, outputFolderFilepath);
+
+        // Running in a thread ensures we get a fresh module, not cached by node, with the newest code
+        await runInWorker({
+          modulePath: thisModuleFilepath,
+          exportName: 'default',
+          args: [inputJsonFilepath, outputFolderFilepath]
+        });
       });
     }
   } catch (error) {

@@ -19,6 +19,9 @@ const LEVEL_HIERARCHY = [
   LEVEL.SPECIALIST,
 ];
 
+const WEEKS_PER_YEAR = 52;
+const VACATION_WEEKS_PER_YEAR = 4;
+
 function _getLevelRank(level) {
   return LEVEL_HIERARCHY.indexOf(level);
 }
@@ -56,11 +59,13 @@ function recordWeeklyWork({ state, task, person, workDone }) {
 
 function findStartableTasks(tasks) {
   // Create a map for quick lookup
-  const taskMap = new Map(tasks.map(t => [t.id, t]));
+  const taskMap = new Map(tasks.map(t => [t.id, t])); // AI, this should be passed around, already calculated
+
+  // AI, we should filter task.onlyStartableAt below as well (not in other functions)
 
   return tasks.filter(task => {
     // Task must have remaining work
-    const isNotCompleted = task.remainingDuration > 0 || task.remainingReworkDuration > 0;
+    const isNotCompleted = task.isDone();
 
     // All dependencies must be complete
     const allDependenciesCompleted = !task.dependsOnTasks || task.dependsOnTasks.length === 0 || task.dependsOnTasks.every(depId => {
@@ -115,7 +120,7 @@ function assignWorkToTask({ task, person, weeksOfWork }) {
 
 function _processPersonnelLifecycle({ personnel, state, globalParams, currentDate }) {
   // Schedule automatic vacations periodically
-  if (state.currentWeek % 52 === 0) {
+  if (state.currentWeek % WEEKS_PER_YEAR === 0) { // AI, some people might have had vacaction, and not worked enough: state.currentWeek >= WEEKS_PER_YEAR && someoneHasWorkedAYear
     scheduleAutomaticVacations({ personnel, currentWeek: state.currentWeek, startDate: currentDate });
   }
 
@@ -135,8 +140,10 @@ function _processPersonnelLifecycle({ personnel, state, globalParams, currentDat
       person.sickUntilWeek = state.currentWeek + duration;
     }
 
+    // AI, we should also have sick calendar as well, for generating the gantt charts
+
     // Reduce capacity if currently sick
-    if (person.sickUntilWeek && state.currentWeek <= person.sickUntilWeek) {
+    if (person.sickUntilWeek && state.currentWeek <= person.sickUntilWeek) { // AI, should have a method Person.isSick(currentWeek)
       person.availableCapacity = 0;
     } else if (person.sickUntilWeek && state.currentWeek > person.sickUntilWeek) {
       // Clear sick leave marker after recovery
@@ -149,8 +156,11 @@ function _processPersonnelLifecycle({ personnel, state, globalParams, currentDat
     if (!person.hasDeparted && shouldPersonQuit(globalParams.turnOverRate || DEFAULT_WEEKLY_QUIT_CHANCE, Math.random())) {
       markPersonAsDeparted({ person });
       createReplacement({ person, currentWeek: state.currentWeek, personnel });
+      // The logic for adding the replacement to the personnel should be here somewhere
     }
   }
+
+  // AI, below we should decrement some kind of counter like we did for sick leaves, but for hiring and onboarding
 
   // Process hiring completion
   for (const person of personnel) {
@@ -172,19 +182,22 @@ function _processPersonnelLifecycle({ personnel, state, globalParams, currentDat
     completeOnboarding({ person, currentWeek: state.currentWeek, rampUpTimeInWeeks: rampUpTime });
   }
 
+  // AI, people onboarding should have capacity = 0 (not reduced, zero)
+
   // Apply onboarding capacity reduction
   const maxRampUpTime = Math.max(...Object.values(globalParams.timeToRampUpByLevel));
   applyOnboardingCapacityReduction({ personnel, currentWeek: state.currentWeek, rampUpTimeInWeeks: maxRampUpTime });
 }
 
 function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, currentDate, taskCompletionDates }) {
+  // AI, below we shouls check as well: !p.isSick() and !p.isOnVacation()
   // Filter available personnel
   const availablePersonnel = personnel.filter(p =>
     isPersonHired({ person: p }) &&
     isPersonOnboarded({ person: p }) &&
     !p.hasDeparted &&
     p.availableCapacity > 0 &&
-    isPersonAvailableByDate({ person: p, currentDate, globalParams })
+    isPersonAvailableByDate({ person: p, currentDate, globalParams }) // AI, this func should not be necessary if we used isSick() and isOnVacation()
   );
 
   // Find startable tasks
@@ -194,6 +207,7 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
   startableTasks = filterTasksByStartDate({ tasks: startableTasks, currentDate });
 
   if (startableTasks.length === 0) {
+    // AI: Instead of returning `hadWork` on this func, we should probably split it in 3: getStartableTasks, assignTasksToPersonnel and executeAssignedWork. The upper function should then orchestrate them to do what it needs to
     return false;
   }
 
@@ -208,14 +222,13 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
     const reworkRate = globalParams.reworkRateByLevel[assignedPerson.level];
     const velocityRate = globalParams.velocityByLevel[assignedPerson.level];
 
-    const actualWeeksUsed = Math.min(
-      assignedPerson.availableCapacity,
-      (task.remainingDuration + task.remainingReworkDuration) / velocityRate
+    const actualWork = Math.min(
+      assignedPerson.availableCapacity * velocityRate,
+      task.remainingDuration + task.remainingReworkDuration
     );
 
-    const actualWork = actualWeeksUsed * velocityRate;
     task.accountWork(actualWork, reworkRate);
-    assignedPerson.availableCapacity -= actualWeeksUsed;
+    assignedPerson.availableCapacity -= actualWork;
 
     // Record weekly work
     recordWeeklyWork({
@@ -230,6 +243,8 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
       taskCompletionDates[task.id] = state.currentWeek;
     }
   }
+
+  // AI, we currently have a limitation above: people might be assigned to a short task that does not consume that person entires week capacity. I.e., while people has available capacity, we should keep reassigning tasks to them (until the everyone capacity is consumed or tasks are no longer available)
 
   return true;
 }
@@ -251,7 +266,7 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate }) {
   }
 
   while (state.currentWeek < MAX_WEEKS) {
-    state.currentWeek++;
+    state.currentWeek++; // AI: Should we have this before checking the simulation is complete?
     const currentDate = _addWeeksToDate(startDate, state.currentWeek);
 
     // Process personnel lifecycle events (hiring, onboarding, turnover, vacations, sick leave)
@@ -284,20 +299,8 @@ function runMultipleIterations({ tasks, personnel, numIterations, globalParams, 
   const iterations = [];
 
   for (let i = 0; i < numIterations; i++) {
-    // Use factory functions if provided, otherwise deep clone
-    let tasksCopy, personnelCopy;
-
-    if (typeof tasks === 'function') {
-      tasksCopy = tasks();
-    } else {
-      tasksCopy = deepClone(tasks);
-    }
-
-    if (typeof personnel === 'function') {
-      personnelCopy = personnel();
-    } else {
-      personnelCopy = deepClone(personnel);
-    }
+    const tasksCopy = deepClone(tasks);
+    const personnelCopy = deepClone(personnel);
 
     const result = runSingleIteration({
       tasks: tasksCopy,
@@ -447,10 +450,12 @@ function applyVacationToPersonnelCapacity({ personnel, currentDate }) {
 }
 
 function shouldPersonGetSick(sickRate, randomValue) {
+  // AI: random value should be rolled here
   return randomValue < sickRate;
 }
 
 function generateSickLeaveDuration(randomValue) {
+  // AI, random value should be generated here, not received
   return Math.floor(randomValue * 5) + 1;
 }
 
@@ -504,6 +509,7 @@ function applyOnboardingCapacityReduction({ personnel, currentWeek, rampUpTimeIn
 }
 
 function shouldPersonQuit(quitRate, randomValue) {
+  // AI, randomValue should be generated here
   return randomValue < quitRate;
 }
 
@@ -529,13 +535,14 @@ function createReplacement({ person, currentWeek, personnel }) {
   replacement.skills = [...(person.skills || [])];
 
   // Set hiring start week
-  replacement.hiringStartWeek = currentWeek;
+  replacement.hiringStartWeek = currentWeek + 1;
 
   // Add to personnel array if provided
   if (personnel) {
     personnel.push(replacement);
   }
 
+  // AI, this function should behave in 2 different ways, personnel should probably not be an arg
   return personnel ? { replacement, personnel } : replacement;
 }
 
@@ -551,11 +558,11 @@ function completeOnboarding({ person, currentWeek, rampUpTimeInWeeks }) {
   }
 }
 
-function hasStartDateConstraint({ task }) {
+function hasStartDateConstraint({ task }) { // AI, function is too small and probably should be a boolean (for readability), not a func
   return task.onlyStartableAt !== undefined;
 }
 
-function getStartDateConstraint({ task }) {
+function getStartDateConstraint({ task }) { // AI, function is too small and probably should be a var (for readability), not a func
   return task.onlyStartableAt;
 }
 
@@ -572,10 +579,12 @@ function filterTasksByStartDate({ tasks, currentDate }) {
   return tasks.filter(task => isTaskStartableByDate({ task, currentDate }));
 }
 
+// AI: This could be O(n), instead of O(n * logn), if func({ iterations, percentileValue })
 function findIterationForPercentile({ iterations, percentile }) {
   // Sort iterations by completion week
   const sorted = [...iterations].sort((a, b) => a.completionWeek - b.completionWeek);
 
+  // AI, I guess we could have an auxiliary func to reuse the percentile computation logic
   // Calculate percentile index using same algorithm as calculatePercentiles
   const index = (percentile / 100) * (sorted.length - 1);
   const lower = Math.floor(index);
@@ -704,20 +713,21 @@ function generateGanttChartCode({ iteration, tasks, personnel, title, startDate 
 
 function sortTasksByPriority(tasks) {
   return [...tasks].sort((a, b) => {
-    // First priority: finish what we started (tasks with work done)
-    const aInProgress = a.mostProbableEstimateInRange > 0 && a.remainingDuration < a.mostProbableEstimateInRange;
+    // First priority: finish what we started (tasks with more work done)
+    const aInProgress = a.mostProbableEstimateInRange > 0 && a.remainingDuration < a.mostProbableEstimateInRange; // AI, we should have a property Task.originalDuration to compare instead of mostProbableEstimateInRange, since the originalDuration is a probably between the fibonacciEstimate and mostProbableEstimateInRange
     const bInProgress = b.mostProbableEstimateInRange > 0 && b.remainingDuration < b.mostProbableEstimateInRange;
 
     if (aInProgress && !bInProgress) return -1;
     if (!aInProgress && bInProgress) return 1;
 
     // Second priority: tasks that block the most other tasks (greedy)
-    const blocksA = a.totalNumOfBlocks || 0;
+    const blocksA = a.totalNumOfBlocks || 0; // AI, we have a limitation here: totalNumOfBlocks is the original number before tasks starts being done. We should have an auxiliar Tasks.remainingNumOfBlocks, which disconsider the tasks already done. We should them use remainingNumOfBlocks here instead of totalNumOfBlocks
     const blocksB = b.totalNumOfBlocks || 0;
     return blocksB - blocksA;
   });
 }
 
+// AI, this function is useful, but I think it could be done once, before simulations even start, right?
 function _sortPersonnelBySeniority(personnel) {
   const LEVEL_RANK = {
     specialist: 5,
@@ -733,8 +743,7 @@ function _sortPersonnelBySeniority(personnel) {
 }
 
 function assignTasksToPersonnel({ tasks, personnel }) {
-  // TODO: Improve heuristic to consider skill affinity, workload balancing,
-  // learning curves, and task switching penalties. See README TODO section.
+  // TODO: Improve heuristic to consider workload balancing, knowledge silo, and task switching penalties
 
   const assignments = [];
   const assignedTasks = new Set();
@@ -781,27 +790,22 @@ function generateChangeRequests({ tasks, splitRate }) {
     title: 'Change Requests',
     type: TASK_TYPE.MILESTONE,
   });
-  changeRequestMilestone.fibonacciEstimate = 0;
-  changeRequestMilestone.mostProbableEstimateInRange = 0;
-  changeRequestMilestone.parents = [];
 
   changeRequestMilestone.dependsOnTasks = tasks
-    .filter(t => t.type === TASK_TYPE.MILESTONE && t.id !== 'milestone-change-requests')
+    .filter(t => t.type === TASK_TYPE.MILESTONE)
     .map(t => t.id);
 
   const changeRequestTasks = [];
+
   for (let i = 1; i <= numChangeRequests; i++) {
     const crTask = new Task({
       id: `change-request-${i}`,
       title: `Change Request: ${i}`,
       type: TASK_TYPE.USER_STORY,
     });
-    crTask.fibonacciEstimate = Math.ceil(avgEstimate);
+    crTask.fibonacciEstimate = Math.ceil(avgEstimate); // AI, this should be the next fibonacci, greater than mostProbableEstimateInRange
     crTask.mostProbableEstimateInRange = avgEstimate;
-    crTask.remainingDuration = avgEstimate;
     crTask.parents = [changeRequestMilestone.id];
-    crTask.dependsOnTasks = [];
-    crTask.requiredSkills = [];
 
     changeRequestTasks.push(crTask);
   }
@@ -822,9 +826,6 @@ function injectChangeRequestsIntoTaskList({ tasks, taskMap, changeRequestMilesto
   }
 }
 
-const WEEKS_PER_YEAR = 52;
-const AUTO_VACATION_WEEKS = 4;
-
 function _calculateWeeksBetween(startDate, targetDate) {
   const diffMs = targetDate.getTime() - startDate.getTime();
   return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
@@ -837,7 +838,7 @@ function _addWeeksToDate(date, weeks) {
 }
 
 function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
-  const vacationCalendar = new Map();
+  const vacationCalendar = new Map(); // AI, this probably should be global at the simulation level
 
   for (const person of personnel) {
     if (!person.vacationsAt) continue;
@@ -847,6 +848,7 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
       const toWeek = _calculateWeeksBetween(startDate, vacation.to);
 
       for (let week = fromWeek; week <= toWeek; week++) {
+        // AI, we have a limitation here: if 2+ people have vacations at the same time, this map cant represent it
         vacationCalendar.set(week, person.id);
       }
     }
@@ -858,7 +860,7 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
     const weeksEmployed = currentWeek - person.hireWeek;
     const yearsEmployed = Math.floor(weeksEmployed / WEEKS_PER_YEAR);
 
-    const expectedVacationWeeks = yearsEmployed * AUTO_VACATION_WEEKS;
+    const expectedVacationWeeks = yearsEmployed * VACATION_WEEKS_PER_YEAR;
 
     if (!person.vacationsAt) {
       person.vacationsAt = [];
@@ -870,6 +872,7 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
       return sum + diffWeeks;
     }, 0);
 
+    // AI, we need to fix here: the initial assigned weeks does not count on the expectedVacationWeeks. During people vacations, we just don't increase their workedWeeks
     const missingWeeks = expectedVacationWeeks - assignedWeeks;
 
     if (missingWeeks > 0) {
@@ -887,6 +890,7 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
         }
 
         if (!conflictFound) {
+          // AI, this wont work, since this new date can also have conflict. We need a proper auxiliary findWeekForVacation({ vacationCalendar, numOfVacationWeeks }) -> weekNumber
           const fromDate = _addWeeksToDate(startDate, candidateStartWeek);
           const toDate = _addWeeksToDate(startDate, candidateStartWeek + missingWeeks - 1);
 
@@ -909,7 +913,7 @@ function isPersonAvailableByDate({ person, currentDate, globalParams }) {
   }
 
   const hiringTime = globalParams.timeToHireByLevel[person.level];
-  const rampUpTime = globalParams.timeToRampUpByLevel[person.level];
+  const rampUpTime = globalParams.timeToRampUpByLevel[person.level]; // AI, is this considered onboard or is a separated concept?
   const totalWeeksNeeded = hiringTime + rampUpTime;
 
   const availableDate = _addWeeksToDate(person.startDate, totalWeeksNeeded);

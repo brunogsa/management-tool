@@ -29,11 +29,18 @@ async function monteCarloCommand(inputJsonFilepath, outputFilepath) {
 
     console.log('Running Monte Carlo simulation...');
 
-    const { listOfSimulations, ganttCharts } = monteCarloUseCase(inputData);
+    const {
+      listOfSimulations,
+      percentiles,
+      ganttCharts,
+    } = monteCarloUseCase(inputData);
 
     console.log('Monte Carlo simulation completed successfully!');
 
+    // AI, need to add a report.md containing the percentiles and other useful data on it, writting it to a file as well
+
     console.debug(JSON.stringify(listOfSimulations, null, 2));
+    console.debug(JSON.stringify(percentiles, null, 2));
 
     console.log('Generating Gantt charts...');
 

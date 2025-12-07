@@ -89,7 +89,7 @@ class Task {
     this.remainingReworkDuration = undefined;
 
     // Undefined | PersonId
-    this.assignee = undefined;
+    this.assignee = undefined; // AI, not sure this is useful
   }
 
   accountWork(spentDuration, reworkRateToConsider) {

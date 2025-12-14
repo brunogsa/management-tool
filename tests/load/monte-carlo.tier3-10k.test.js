@@ -56,7 +56,11 @@ describe('Monte Carlo Load Tests - Tier 3 (10,000 iterations)', () => {
 
     expect(result.ganttCharts).toHaveLength(5);
 
-    console.log(`Tier 3: 10K iterations in ${duration}ms (${Math.round(10000 / (duration / 1000))} iter/sec)`);
+    const memAfter = process.memoryUsage();
+    console.log('\n=== Tier 3 Performance ===');
+    console.log(`Time: ${duration}ms (${Math.round(10000 / (duration / 1000))} iter/sec)`);
+    console.log(`Heap: ${Math.round(memAfter.heapUsed / 1024 / 1024)}MB, RSS: ${Math.round(memAfter.rss / 1024 / 1024)}MB`);
+    console.log('==========================\n');
   });
 
   it('should have stable percentile estimates at 10,000 iterations', () => {

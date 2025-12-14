@@ -90,15 +90,15 @@ describe('Monte Carlo Basic Integration', () => {
       }
     });
 
-    it('should track worked weeks with assignments', () => {
+    it('should store seed for deterministic replay (workedWeeks skipped for memory optimization)', () => {
       const input = createDeterministicInput();
 
       const result = monteCarloUseCase(input);
 
       for (const iteration of result.listOfSimulations) {
-        expect(iteration).toHaveProperty('workedWeeks');
-        expect(Array.isArray(iteration.workedWeeks)).toBe(true);
-        expect(iteration.workedWeeks.length).toBeGreaterThan(0);
+        // workedWeeks is skipped for memory optimization, but seed is stored for replay
+        expect(iteration).toHaveProperty('seed');
+        expect(typeof iteration.seed).toBe('number');
       }
     });
   });

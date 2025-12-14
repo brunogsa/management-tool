@@ -1,3 +1,4 @@
+import seedrandom from 'seedrandom';
 import { deepClone } from './graph.js';
 import { info, debug } from './logger.js';
 import {
@@ -327,7 +328,7 @@ function assignWorkToTask({ task, person, weeksOfWork }) {
   return actualWork;
 }
 
-function _processPersonnelLifecycle({ personnel, state, globalParams, currentDate, logContext = {} }) {
+function _processPersonnelLifecycle({ personnel, state, globalParams, currentDate, randomFunc, logContext = {} }) {
   // Reset personnel capacity
   for (const person of personnel) {
     person.availableCapacity = 1;
@@ -339,8 +340,8 @@ function _processPersonnelLifecycle({ personnel, state, globalParams, currentDat
   // Process sick leave
   for (const person of personnel) {
     // Start new sick leave if person gets sick
-    if (!person.sickUntilWeek && shouldPersonGetSick(globalParams.sickRate)) {
-      const duration = generateSickLeaveDuration();
+    if (!person.sickUntilWeek && shouldPersonGetSick(globalParams.sickRate, randomFunc)) {
+      const duration = generateSickLeaveDuration(randomFunc);
       person.sickUntilWeek = state.currentWeek + duration;
       info('Person got sick', { personId: person.id, duration, ...logContext });
 
@@ -365,7 +366,7 @@ function _processPersonnelLifecycle({ personnel, state, globalParams, currentDat
 
   // Process turnover
   for (const person of personnel) {
-    if (!person.hasDeparted && shouldPersonQuit(globalParams.turnOverRate)) {
+    if (!person.hasDeparted && shouldPersonQuit(globalParams.turnOverRate, randomFunc)) {
       markPersonAsDeparted({ person });
       const replacement = createReplacement({ person, currentWeek: state.currentWeek });
       personnel.push(replacement);
@@ -453,7 +454,7 @@ function _getStartableTasks({ tasks, currentDate }) {
   return filterTasksByStartDate({ tasks: startable, currentDate });
 }
 
-function _executeAssignments({ assignments, state, globalParams, taskCompletionDates, logContext = {} }) {
+function _executeAssignments({ assignments, state, globalParams, taskCompletionDates, skipWorkedWeeks = false, logContext = {} }) {
   for (const { task, assignedPerson } of assignments) {
     const reworkRate = globalParams.reworkRateByLevel[assignedPerson.level];
     const velocityRate = globalParams.velocityByLevel[assignedPerson.level];
@@ -466,13 +467,15 @@ function _executeAssignments({ assignments, state, globalParams, taskCompletionD
     _accountWork(task, actualWork, reworkRate);
     assignedPerson.availableCapacity -= actualWork;
 
-    // Record weekly work
-    recordWeeklyWork({
-      state,
-      task,
-      person: assignedPerson,
-      workDone: actualWork,
-    });
+    // Record weekly work (skip if not needed for memory optimization)
+    if (!skipWorkedWeeks) {
+      recordWeeklyWork({
+        state,
+        task,
+        person: assignedPerson,
+        workDone: actualWork,
+      });
+    }
 
     // Track completion
     if (_isTaskDone(task) && !taskCompletionDates[task.id]) {
@@ -482,7 +485,7 @@ function _executeAssignments({ assignments, state, globalParams, taskCompletionD
   }
 }
 
-function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, currentDate, taskCompletionDates, logContext = {} }) {
+function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, currentDate, taskCompletionDates, skipWorkedWeeks = false, logContext = {} }) {
   let hadAnyWork = false;
 
   // Keep assigning until no more work can be done (allows multiple tasks per person per week)
@@ -528,6 +531,7 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
       state,
       globalParams,
       taskCompletionDates,
+      skipWorkedWeeks,
       logContext,
     });
 
@@ -592,7 +596,8 @@ function _validateSimulationCompletion({ tasks, personnel, taskCompletionDates, 
   throw new Error(errorMessage);
 }
 
-function runSingleIteration({ tasks, personnel, globalParams, startDate, logContext = {} }) {
+function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, skipWorkedWeeks = false, logContext = {} }) {
+  const randomFunc = seedrandom(seed);
   const state = initializeSimulationState();
   const taskCompletionDates = {};
   const MAX_WEEKS = 1000;
@@ -645,7 +650,7 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate, logCont
     const currentDate = _addWeeksToDate(startDate, state.currentWeek);
 
     // Process personnel lifecycle events (hiring, onboarding, turnover, vacations, sick leave)
-    _processPersonnelLifecycle({ personnel, state, globalParams, currentDate, logContext });
+    _processPersonnelLifecycle({ personnel, state, globalParams, currentDate, randomFunc, logContext });
 
     // Process weekly work assignments and execution
     const hadWork = _processWeeklyWorkAssignments({
@@ -655,6 +660,7 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate, logCont
       globalParams,
       currentDate,
       taskCompletionDates,
+      skipWorkedWeeks,
       logContext,
     });
 
@@ -685,17 +691,25 @@ function runMultipleIterations({ tasks, personnel, numIterations, globalParams, 
     const tasksCopy = deepClone(tasks);
     const personnelCopy = deepClone(personnel);
 
+    const seed = Date.now() + i;
     const result = runSingleIteration({
       tasks: tasksCopy,
       personnel: personnelCopy,
       globalParams,
       startDate,
+      seed,
+      skipWorkedWeeks: true,
       logContext,
     });
 
     info('Iteration completed', { completionWeek: result.completionWeek, ...logContext });
 
-    iterations.push(result);
+    // Store minimal data for memory optimization (workedWeeks skipped)
+    iterations.push({
+      completionWeek: result.completionWeek,
+      taskCompletionDates: result.taskCompletionDates,
+      seed,
+    });
   }
 
   return {
@@ -891,13 +905,13 @@ function applyVacationToPersonnelCapacity({ personnel, currentDate }) {
   }
 }
 
-function shouldPersonGetSick(sickRate) {
+function shouldPersonGetSick(sickRate, randomFunc) {
   const rate = sickRate ?? DEFAULT_WEEKLY_SICK_CHANCE;
-  return Math.random() < rate;
+  return randomFunc() < rate;
 }
 
-function generateSickLeaveDuration() {
-  return Math.floor(Math.random() * 5) + 1;
+function generateSickLeaveDuration(randomFunc) {
+  return Math.floor(randomFunc() * 5) + 1;
 }
 
 function isPersonHired({ person }) {
@@ -951,9 +965,9 @@ function applyOnboardingCapacityReduction({ personnel }) {
   }
 }
 
-function shouldPersonQuit(quitRate) {
+function shouldPersonQuit(quitRate, randomFunc) {
   const rate = quitRate ?? DEFAULT_WEEKLY_QUIT_CHANCE;
-  return Math.random() < rate;
+  return randomFunc() < rate;
 }
 
 function markPersonAsDeparted({ person }) {

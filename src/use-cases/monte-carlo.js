@@ -5,9 +5,11 @@ import {
   attachBlockedTasksFromDependsOnProps,
   populateContainerEstimates,
   attachBlockingCounts,
+  deepClone,
 } from '../utils/graph.js';
 import {
   runMultipleIterations,
+  runSingleIteration,
   calculatePercentiles,
   findClosestIterationForTargetCompletionWeek,
   generateGanttChartCode,
@@ -99,18 +101,30 @@ function monteCarloUseCase(inputData) {
   const completionWeeks = iterations.map(iter => iter.completionWeek);
   const completionWeekPercentiles = calculatePercentiles(completionWeeks, percentilesOfInterest);
 
-  // Generate Gantt charts for key percentiles
+  // Replay percentile iterations with full workedWeeks tracking for Gantt chart generation
   const ganttCharts = percentilesOfInterest.map(percentile => {
     const targetCompletionWeek = completionWeekPercentiles[`p${percentile}`];
     const iteration = findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek });
 
+    // Replay with full tracking using the same seed
+    const tasksCopy = deepClone(tasks);
+    const personnelCopy = deepClone(personnel);
+    const iterationWithFullData = runSingleIteration({
+      tasks: tasksCopy,
+      personnel: personnelCopy,
+      globalParams,
+      startDate,
+      seed: iteration.seed,
+      skipWorkedWeeks: false,
+    });
+
     return {
       identifier: `${percentile}th`,
       mermaidCode: generateGanttChartCode({
-        iteration,
-        tasks,
-        personnel,
-        title: `${percentile}th Percentile Timeline (Week ${iteration.completionWeek})`,
+        iteration: iterationWithFullData,
+        tasks: tasksCopy,
+        personnel: personnelCopy,
+        title: `${percentile}th Percentile Timeline (Week ${iterationWithFullData.completionWeek})`,
         startDate,
       }),
     };

@@ -85,11 +85,26 @@ async function monteCarloCommand(inputJsonFilepath, outputFilepath) {
       taskSplitRate: inputData.globalParams.taskSplitRate,
     });
 
+    const memBefore = process.memoryUsage();
+    const startTime = Date.now();
+
     const {
       listOfSimulations,
       completionWeekPercentiles,
       ganttCharts,
     } = monteCarloUseCase(inputData);
+
+    const duration = Date.now() - startTime;
+    const memAfter = process.memoryUsage();
+
+    info('Performance metrics', {
+      durationMs: duration,
+      iterationsPerSec: Math.round(listOfSimulations.length / (duration / 1000)),
+      heapUsedBeforeMB: Math.round(memBefore.heapUsed / 1024 / 1024),
+      heapUsedAfterMB: Math.round(memAfter.heapUsed / 1024 / 1024),
+      heapDeltaMB: Math.round((memAfter.heapUsed - memBefore.heapUsed) / 1024 / 1024),
+      rssMB: Math.round(memAfter.rss / 1024 / 1024),
+    });
 
     info('Monte Carlo simulation completed', {
       numIterations: listOfSimulations.length,

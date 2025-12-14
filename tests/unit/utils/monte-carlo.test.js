@@ -612,7 +612,12 @@ describe('Monte Carlo Simulation', () => {
           return [person];
         };
 
-        const globalParams = createDefaultGlobalParams();
+        // Disable sick and turnover to ensure deterministic results
+        const globalParams = {
+          ...createDefaultGlobalParams(),
+          sickRate: 0,
+          turnOverRate: 0,
+        };
         const startDate = new Date('2025-01-01');
 
         const result = runMultipleIterations({
@@ -623,7 +628,7 @@ describe('Monte Carlo Simulation', () => {
           startDate,
         });
 
-        // All iterations should have similar completion times (since tasks are identical)
+        // All iterations should have similar completion times (since tasks are identical and no random events)
         const completionWeeks = result.iterations.map(iter => iter.completionWeek);
         const allSimilar = completionWeeks.every(week => week === completionWeeks[0]);
         expect(allSimilar).toBe(true);
@@ -1226,149 +1231,134 @@ describe('Monte Carlo Simulation', () => {
   describe('Phase 5: Sick Leave Simulation', () => {
     describe('Step 16: Weekly sick probability', () => {
       it('should return true when random value is below sick rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.0001); // 0.01% < 0.0389% sick rate
+        const randomFunc = () => 0.0001; // 0.01% < 0.0389% sick rate
         const sickRate = 0.000389;
 
-        const result = shouldPersonGetSick(sickRate);
+        const result = shouldPersonGetSick(sickRate, randomFunc);
 
         expect(result).toBe(true);
-        jest.restoreAllMocks();
       });
 
       it('should return false when random value is above sick rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.0005); // 0.05% > 0.0389% sick rate
+        const randomFunc = () => 0.0005; // 0.05% > 0.0389% sick rate
         const sickRate = 0.000389;
 
-        const result = shouldPersonGetSick(sickRate);
+        const result = shouldPersonGetSick(sickRate, randomFunc);
 
         expect(result).toBe(false);
-        jest.restoreAllMocks();
       });
 
       it('should use default sick rate (0.0389%)', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.0003); // 0.03% < 0.0389%
+        const randomFunc = () => 0.0003; // 0.03% < 0.0389%
         const sickRate = DEFAULT_WEEKLY_SICK_CHANCE;
 
-        const result = shouldPersonGetSick(sickRate);
+        const result = shouldPersonGetSick(sickRate, randomFunc);
 
         expect(result).toBe(true);
         expect(sickRate).toBe(0.000389);
-        jest.restoreAllMocks();
       });
 
       it('should handle edge case at exactly sick rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.000389); // Exactly 0.0389%
+        const randomFunc = () => 0.000389; // Exactly 0.0389%
         const sickRate = 0.000389;
 
-        const result = shouldPersonGetSick(sickRate);
+        const result = shouldPersonGetSick(sickRate, randomFunc);
 
         expect(result).toBe(false); // >= means no sick leave
-        jest.restoreAllMocks();
       });
 
       it('should always get sick with 100% rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.99);
+        const randomFunc = () => 0.99;
         const sickRate = 1.0;
 
-        const result = shouldPersonGetSick(sickRate);
+        const result = shouldPersonGetSick(sickRate, randomFunc);
 
         expect(result).toBe(true);
-        jest.restoreAllMocks();
       });
 
       it('should never get sick with 0% rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.0);
+        const randomFunc = () => 0.0;
         const sickRate = 0.0;
 
-        const result = shouldPersonGetSick(sickRate);
+        const result = shouldPersonGetSick(sickRate, randomFunc);
 
         expect(result).toBe(false);
-        jest.restoreAllMocks();
       });
 
       it('should handle very low probability correctly', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.00001); // Very small random
+        const randomFunc = () => 0.00001; // Very small random
         const sickRate = 0.000389;
 
-        const result = shouldPersonGetSick(sickRate);
+        const result = shouldPersonGetSick(sickRate, randomFunc);
 
         expect(result).toBe(true);
-        jest.restoreAllMocks();
       });
     });
 
     describe('Step 17: Sick leave duration', () => {
       it('should generate duration between 1 and 5', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.5);
+        const randomFunc = () => 0.5;
 
-        const duration = generateSickLeaveDuration();
+        const duration = generateSickLeaveDuration(randomFunc);
 
         expect(duration).toBeGreaterThanOrEqual(1);
         expect(duration).toBeLessThanOrEqual(5);
-        jest.restoreAllMocks();
       });
 
       it('should generate 1 for very low random value', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.0);
+        const randomFunc = () => 0.0;
 
-        const duration = generateSickLeaveDuration();
+        const duration = generateSickLeaveDuration(randomFunc);
 
         expect(duration).toBe(1);
-        jest.restoreAllMocks();
       });
 
       it('should generate 5 for very high random value', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.99);
+        const randomFunc = () => 0.99;
 
-        const duration = generateSickLeaveDuration();
+        const duration = generateSickLeaveDuration(randomFunc);
 
         expect(duration).toBe(5);
-        jest.restoreAllMocks();
       });
 
       it('should generate 1 for random value in [0, 0.2)', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.1);
+        const randomFunc = () => 0.1;
 
-        const duration = generateSickLeaveDuration();
+        const duration = generateSickLeaveDuration(randomFunc);
 
         expect(duration).toBe(1);
-        jest.restoreAllMocks();
       });
 
       it('should generate 2 for random value in [0.2, 0.4)', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.3);
+        const randomFunc = () => 0.3;
 
-        const duration = generateSickLeaveDuration();
+        const duration = generateSickLeaveDuration(randomFunc);
 
         expect(duration).toBe(2);
-        jest.restoreAllMocks();
       });
 
       it('should generate 3 for random value in [0.4, 0.6)', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.5);
+        const randomFunc = () => 0.5;
 
-        const duration = generateSickLeaveDuration();
+        const duration = generateSickLeaveDuration(randomFunc);
 
         expect(duration).toBe(3);
-        jest.restoreAllMocks();
       });
 
       it('should generate 4 for random value in [0.6, 0.8)', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.7);
+        const randomFunc = () => 0.7;
 
-        const duration = generateSickLeaveDuration();
+        const duration = generateSickLeaveDuration(randomFunc);
 
         expect(duration).toBe(4);
-        jest.restoreAllMocks();
       });
 
       it('should generate 5 for random value in [0.8, 1.0]', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.9);
+        const randomFunc = () => 0.9;
 
-        const duration = generateSickLeaveDuration();
+        const duration = generateSickLeaveDuration(randomFunc);
 
         expect(duration).toBe(5);
-        jest.restoreAllMocks();
       });
     });
   });
@@ -1651,74 +1641,67 @@ describe('Monte Carlo Simulation', () => {
   describe('Phase 7: Turnover and Replacement', () => {
     describe('Step 22: Weekly quit probability', () => {
       it('should return true when random value is below quit rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.001); // 0.1% < 0.301% quit rate
+        const randomFunc = () => 0.001; // 0.1% < 0.301% quit rate
         const quitRate = 0.00301;
 
-        const result = shouldPersonQuit(quitRate);
+        const result = shouldPersonQuit(quitRate, randomFunc);
 
         expect(result).toBe(true);
-        jest.restoreAllMocks();
       });
 
       it('should return false when random value is above quit rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.004); // 0.4% > 0.301% quit rate
+        const randomFunc = () => 0.004; // 0.4% > 0.301% quit rate
         const quitRate = 0.00301;
 
-        const result = shouldPersonQuit(quitRate);
+        const result = shouldPersonQuit(quitRate, randomFunc);
 
         expect(result).toBe(false);
-        jest.restoreAllMocks();
       });
 
       it('should use default quit rate (0.301%)', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.002); // 0.2% < 0.301%
+        const randomFunc = () => 0.002; // 0.2% < 0.301%
         const quitRate = DEFAULT_WEEKLY_QUIT_CHANCE;
 
-        const result = shouldPersonQuit(quitRate);
+        const result = shouldPersonQuit(quitRate, randomFunc);
 
         expect(result).toBe(true);
         expect(quitRate).toBe(0.00301);
-        jest.restoreAllMocks();
       });
 
       it('should handle edge case at exactly quit rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.00301); // Exactly 0.301%
+        const randomFunc = () => 0.00301; // Exactly 0.301%
         const quitRate = 0.00301;
 
-        const result = shouldPersonQuit(quitRate);
+        const result = shouldPersonQuit(quitRate, randomFunc);
 
         expect(result).toBe(false); // >= means no quit
-        jest.restoreAllMocks();
       });
 
       it('should always quit with 100% rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.99);
+        const randomFunc = () => 0.99;
         const quitRate = 1.0;
 
-        const result = shouldPersonQuit(quitRate);
+        const result = shouldPersonQuit(quitRate, randomFunc);
 
         expect(result).toBe(true);
-        jest.restoreAllMocks();
       });
 
       it('should never quit with 0% rate', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.0);
+        const randomFunc = () => 0.0;
         const quitRate = 0.0;
 
-        const result = shouldPersonQuit(quitRate);
+        const result = shouldPersonQuit(quitRate, randomFunc);
 
         expect(result).toBe(false);
-        jest.restoreAllMocks();
       });
 
       it('should handle very low probability correctly', () => {
-        jest.spyOn(Math, 'random').mockReturnValue(0.00001); // Very small random
+        const randomFunc = () => 0.00001; // Very small random
         const quitRate = 0.00301;
 
-        const result = shouldPersonQuit(quitRate);
+        const result = shouldPersonQuit(quitRate, randomFunc);
 
         expect(result).toBe(true);
-        jest.restoreAllMocks();
       });
     });
 

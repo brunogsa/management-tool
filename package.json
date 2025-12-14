@@ -11,7 +11,7 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/ --coverage --coverageDirectory=coverage --testPathIgnorePatterns='tests/load/'",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/unit/ --coverage --coverageDirectory=coverage/unit",
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/integration/ --coverage --coverageDirectory=coverage/integration",
-    "test:load": "node --max-old-space-size=8192 --experimental-vm-modules node_modules/jest/bin/jest.js tests/load/ --no-coverage --runInBand",
+    "test:load": "for f in tests/load/*.test.js; do LOG_LEVEL=none node --max-old-space-size=8192 --experimental-vm-modules node_modules/jest/bin/jest.js \"$f\" --no-coverage --runInBand || exit 1; done",
     "lint": "eslint . && echo '\n✓ No linting errors found'",
     "lint:fix": "eslint . --fix && echo '\n✓ Linting complete'"
   },

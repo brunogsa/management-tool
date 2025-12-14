@@ -3,9 +3,11 @@ import addFormats from 'ajv-formats';
 
 import {
   LEVEL,
+  LEVEL_RANK,
   FIBONACCI,
   TIME_UNITS,
   TASK_TYPE,
+  isContainerTask,
 
   DEFAULT_WEEKLY_SICK_CHANCE,
   DEFAULT_WEEKLY_QUIT_CHANCE,
@@ -137,7 +139,6 @@ const definitions = {
       },
       name: {
         type: 'string',
-        default: '',
       },
       level: {
         $ref: '#/$defs/Level',
@@ -171,6 +172,11 @@ const definitions = {
           },
         },
         default: [],
+      },
+      startDate: {
+        type: 'string',
+        format: 'date',
+        description: 'Date when person becomes available (will go through hiring and onboarding from this date)',
       }
     }
   },
@@ -392,27 +398,173 @@ const jsonSchema = {
   ]
 };
 
-const inputValidator = (inputData) => {
-  const ajv = new Ajv({ allErrors: true });
-  addFormats(ajv);
+const _validatePersonnelState = (personnel) => {
+  for (const person of personnel) {
+    if (person.onboarded && !person.hired) {
+      throw new Error(
+        `Personnel "${person.id}" cannot be onboarded if not hired`
+      );
+    }
+  }
+};
 
-  // TODO: Ensure default values are aggregated
+const _validateTaskEstimates = (tasks) => {
+  for (const task of tasks) {
+    if (isContainerTask(task.type)) {
+      continue;
+    }
+
+    if (task.fibonacciEstimate === 0 || task.mostProbableEstimateInRange === 0) {
+      throw new Error(
+        `Task "${task.id}" has zero estimate. Leaf tasks must have non-zero estimates.`
+      );
+    }
+  }
+};
+
+const _validateTaskHierarchy = (tasks) => {
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
+
+  for (const task of tasks) {
+    const parents = task.parents || [];
+
+    for (const parentId of parents) {
+      const parentTask = taskMap.get(parentId);
+
+      if (!parentTask) {
+        throw new Error(
+          `Task "${task.id}" has parent "${parentId}" which was not found in tasks`
+        );
+      }
+
+      // A parent should be an epic, milestone, or project
+      if (!isContainerTask(parentTask.type)) {
+        throw new Error(
+          'Task "' + task.id + '" has parent "' + parentId + '" of type "' + parentTask.type + '". ' +
+          'A parent must be an epic, milestone, or project'
+        );
+      }
+
+      // An epic cannot have another epic as parent
+      if (task.type === TASK_TYPE.EPIC && parentTask.type === TASK_TYPE.EPIC) {
+        throw new Error(
+          `Epic "${task.id}" cannot have another epic as parent`
+        );
+      }
+
+      // A milestone can only have a project as parent
+      if (task.type === TASK_TYPE.MILESTONE && parentTask.type !== TASK_TYPE.PROJECT) {
+        throw new Error(
+          `Milestone "${task.id}" can only have a project as parent, ` +
+          `but has "${parentId}" of type "${parentTask.type}"`
+        );
+      }
+    }
+
+    // A project can never have a parent
+    if (task.type === TASK_TYPE.PROJECT && parents.length > 0) {
+      throw new Error(
+        `Project "${task.id}" cannot have a parent`
+      );
+    }
+  }
+};
+
+const _validateNoCircularDependencies = (tasks) => {
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
+  const visited = new Set();
+  const recursionStack = new Set();
+
+  const hasCycle = (taskId, path = []) => {
+    if (recursionStack.has(taskId)) {
+      const cycleStart = path.indexOf(taskId);
+      const cycle = [...path.slice(cycleStart), taskId];
+      throw new Error(
+        `Circular dependency detected: ${cycle.join(' -> ')}`
+      );
+    }
+
+    if (visited.has(taskId)) {
+      return false;
+    }
+
+    const task = taskMap.get(taskId);
+    if (!task) {
+      return false;
+    }
+
+    visited.add(taskId);
+    recursionStack.add(taskId);
+
+    const dependencies = task.dependsOnTasks || [];
+    for (const depId of dependencies) {
+      hasCycle(depId, [...path, taskId]);
+    }
+
+    recursionStack.delete(taskId);
+    return false;
+  };
+
+  for (const task of tasks) {
+    if (!visited.has(task.id)) {
+      hasCycle(task.id);
+    }
+  }
+};
+
+const _levelMeetsRequirement = (personLevel, requiredLevel) => {
+  return LEVEL_RANK[personLevel] >= LEVEL_RANK[requiredLevel];
+};
+
+const _validateTasksHaveQualifiedPersonnel = (tasks, personnel) => {
+  for (const task of tasks) {
+    if (isContainerTask(task.type)) {
+      continue;
+    }
+
+    const requiredSkills = task.requiredSkills || [];
+    if (requiredSkills.length === 0) {
+      continue;
+    }
+
+    const hasQualifiedPerson = personnel.some(person => {
+      const personSkills = person.skills || [];
+      return requiredSkills.every(requiredSkill => {
+        return personSkills.some(personSkill =>
+          personSkill.name === requiredSkill.name &&
+          _levelMeetsRequirement(personSkill.minLevel, requiredSkill.minLevel)
+        );
+      });
+    });
+
+    if (!hasQualifiedPerson) {
+      const skillsDesc = requiredSkills.map(s => `${s.name} (${s.minLevel}+)`).join(', ');
+      throw new Error(
+        `Task "${task.id}" requires skills [${skillsDesc}] but no personnel can fulfill all requirements`
+      );
+    }
+  }
+};
+
+const inputValidator = (inputData) => {
+  const ajv = new Ajv({ allErrors: true, useDefaults: true });
+  addFormats(ajv);
 
   const validate = ajv.compile(jsonSchema);
   const valid = validate(inputData);
-
-  // TODO: A parent should either be an epic, milestone or project
-  // TODO: An epic cant have another epic as parent
-  // TODO: A milestone can only have a project as a parent
-  // TODO: A project can never have a parent
-
-  // TODO: Cant have onboarded=true, if hired=false
 
   if (!valid) {
     throw new Error(
       JSON.stringify(validate.errors, null, 2),
     );
   }
+
+  // Custom validations after AJV schema validation
+  _validatePersonnelState(inputData.personnel);
+  _validateTaskEstimates(inputData.tasks);
+  _validateTaskHierarchy(inputData.tasks);
+  _validateNoCircularDependencies(inputData.tasks);
+  _validateTasksHaveQualifiedPersonnel(inputData.tasks, inputData.personnel);
 };
 
 export default inputValidator;

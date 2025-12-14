@@ -1,10 +1,11 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
 import {
   initializeSimulationState,
   recordWeeklyWork,
   findStartableTasks,
   isPersonQualifiedForTask,
   assignWorkToTask,
+  assignTasksToPersonnel,
   runSingleIteration,
   runMultipleIterations,
   calculatePercentiles,
@@ -32,13 +33,11 @@ import {
   createReplacement,
   startOnboarding,
   completeOnboarding,
-  hasStartDateConstraint,
-  getStartDateConstraint,
   isTaskStartableByDate,
   filterTasksByStartDate,
-  findIterationForPercentile,
+  findClosestIterationForTargetCompletionWeek,
   extractTaskTimeline,
-  extractPercentilesTimeline,
+  extractTimelineForTargetCompletionWeek,
   generateGanttChartCode,
 } from '../../../src/utils/monte-carlo.js';
 import { Task, TASK_TYPE, Person, Skill, LEVEL, DEFAULT_VELOCITY_RATE, DEFAULT_REWORK_RATE, DEFAULT_WEEKLY_SICK_CHANCE, DEFAULT_WEEKLY_QUIT_CHANCE, DEFAULT_TIME_TO_HIRE, DEFAULT_TIME_TO_RAMPUP } from '../../../src/models.js';
@@ -534,8 +533,8 @@ describe('Monte Carlo Simulation', () => {
         const startDate = new Date('2025-01-01');
 
         const result = runMultipleIterations({
-          tasks: createTasks,
-          personnel: createPersonnel,
+          tasks: createTasks(),
+          personnel: createPersonnel(),
           numIterations: 5,
           globalParams,
           startDate,
@@ -580,8 +579,8 @@ describe('Monte Carlo Simulation', () => {
         const startDate = new Date('2025-01-01');
 
         const result = runMultipleIterations({
-          tasks: createTasks,
-          personnel: createPersonnel,
+          tasks: createTasks(),
+          personnel: createPersonnel(),
           numIterations: 3,
           globalParams,
           startDate,
@@ -617,8 +616,8 @@ describe('Monte Carlo Simulation', () => {
         const startDate = new Date('2025-01-01');
 
         const result = runMultipleIterations({
-          tasks: createTasks,
-          personnel: createPersonnel,
+          tasks: createTasks(),
+          personnel: createPersonnel(),
           numIterations: 10,
           globalParams,
           startDate,
@@ -1227,134 +1226,149 @@ describe('Monte Carlo Simulation', () => {
   describe('Phase 5: Sick Leave Simulation', () => {
     describe('Step 16: Weekly sick probability', () => {
       it('should return true when random value is below sick rate', () => {
-        const mockRandom = 0.0001; // 0.01% < 0.0389% sick rate
+        jest.spyOn(Math, 'random').mockReturnValue(0.0001); // 0.01% < 0.0389% sick rate
         const sickRate = 0.000389;
 
-        const result = shouldPersonGetSick(sickRate, mockRandom);
+        const result = shouldPersonGetSick(sickRate);
 
         expect(result).toBe(true);
+        jest.restoreAllMocks();
       });
 
       it('should return false when random value is above sick rate', () => {
-        const mockRandom = 0.0005; // 0.05% > 0.0389% sick rate
+        jest.spyOn(Math, 'random').mockReturnValue(0.0005); // 0.05% > 0.0389% sick rate
         const sickRate = 0.000389;
 
-        const result = shouldPersonGetSick(sickRate, mockRandom);
+        const result = shouldPersonGetSick(sickRate);
 
         expect(result).toBe(false);
+        jest.restoreAllMocks();
       });
 
       it('should use default sick rate (0.0389%)', () => {
-        const mockRandom = 0.0003; // 0.03% < 0.0389%
+        jest.spyOn(Math, 'random').mockReturnValue(0.0003); // 0.03% < 0.0389%
         const sickRate = DEFAULT_WEEKLY_SICK_CHANCE;
 
-        const result = shouldPersonGetSick(sickRate, mockRandom);
+        const result = shouldPersonGetSick(sickRate);
 
         expect(result).toBe(true);
         expect(sickRate).toBe(0.000389);
+        jest.restoreAllMocks();
       });
 
       it('should handle edge case at exactly sick rate', () => {
-        const mockRandom = 0.000389; // Exactly 0.0389%
+        jest.spyOn(Math, 'random').mockReturnValue(0.000389); // Exactly 0.0389%
         const sickRate = 0.000389;
 
-        const result = shouldPersonGetSick(sickRate, mockRandom);
+        const result = shouldPersonGetSick(sickRate);
 
         expect(result).toBe(false); // >= means no sick leave
+        jest.restoreAllMocks();
       });
 
       it('should always get sick with 100% rate', () => {
-        const mockRandom = 0.99;
+        jest.spyOn(Math, 'random').mockReturnValue(0.99);
         const sickRate = 1.0;
 
-        const result = shouldPersonGetSick(sickRate, mockRandom);
+        const result = shouldPersonGetSick(sickRate);
 
         expect(result).toBe(true);
+        jest.restoreAllMocks();
       });
 
       it('should never get sick with 0% rate', () => {
-        const mockRandom = 0.0;
+        jest.spyOn(Math, 'random').mockReturnValue(0.0);
         const sickRate = 0.0;
 
-        const result = shouldPersonGetSick(sickRate, mockRandom);
+        const result = shouldPersonGetSick(sickRate);
 
         expect(result).toBe(false);
+        jest.restoreAllMocks();
       });
 
       it('should handle very low probability correctly', () => {
-        const mockRandom = 0.00001; // Very small random
+        jest.spyOn(Math, 'random').mockReturnValue(0.00001); // Very small random
         const sickRate = 0.000389;
 
-        const result = shouldPersonGetSick(sickRate, mockRandom);
+        const result = shouldPersonGetSick(sickRate);
 
         expect(result).toBe(true);
+        jest.restoreAllMocks();
       });
     });
 
     describe('Step 17: Sick leave duration', () => {
       it('should generate duration between 1 and 5', () => {
-        const randomValue = 0.5;
+        jest.spyOn(Math, 'random').mockReturnValue(0.5);
 
-        const duration = generateSickLeaveDuration(randomValue);
+        const duration = generateSickLeaveDuration();
 
         expect(duration).toBeGreaterThanOrEqual(1);
         expect(duration).toBeLessThanOrEqual(5);
+        jest.restoreAllMocks();
       });
 
       it('should generate 1 for very low random value', () => {
-        const randomValue = 0.0;
+        jest.spyOn(Math, 'random').mockReturnValue(0.0);
 
-        const duration = generateSickLeaveDuration(randomValue);
+        const duration = generateSickLeaveDuration();
 
         expect(duration).toBe(1);
+        jest.restoreAllMocks();
       });
 
       it('should generate 5 for very high random value', () => {
-        const randomValue = 0.99;
+        jest.spyOn(Math, 'random').mockReturnValue(0.99);
 
-        const duration = generateSickLeaveDuration(randomValue);
+        const duration = generateSickLeaveDuration();
 
         expect(duration).toBe(5);
+        jest.restoreAllMocks();
       });
 
       it('should generate 1 for random value in [0, 0.2)', () => {
-        const randomValue = 0.1;
+        jest.spyOn(Math, 'random').mockReturnValue(0.1);
 
-        const duration = generateSickLeaveDuration(randomValue);
+        const duration = generateSickLeaveDuration();
 
         expect(duration).toBe(1);
+        jest.restoreAllMocks();
       });
 
       it('should generate 2 for random value in [0.2, 0.4)', () => {
-        const randomValue = 0.3;
+        jest.spyOn(Math, 'random').mockReturnValue(0.3);
 
-        const duration = generateSickLeaveDuration(randomValue);
+        const duration = generateSickLeaveDuration();
 
         expect(duration).toBe(2);
+        jest.restoreAllMocks();
       });
 
       it('should generate 3 for random value in [0.4, 0.6)', () => {
-        const randomValue = 0.5;
+        jest.spyOn(Math, 'random').mockReturnValue(0.5);
 
-        const duration = generateSickLeaveDuration(randomValue);
+        const duration = generateSickLeaveDuration();
 
         expect(duration).toBe(3);
+        jest.restoreAllMocks();
       });
 
       it('should generate 4 for random value in [0.6, 0.8)', () => {
-        const randomValue = 0.7;
+        jest.spyOn(Math, 'random').mockReturnValue(0.7);
 
-        const duration = generateSickLeaveDuration(randomValue);
+        const duration = generateSickLeaveDuration();
 
         expect(duration).toBe(4);
+        jest.restoreAllMocks();
       });
 
       it('should generate 5 for random value in [0.8, 1.0]', () => {
-        const randomValue = 0.9;
+        jest.spyOn(Math, 'random').mockReturnValue(0.9);
 
-        const duration = generateSickLeaveDuration(randomValue);
+        const duration = generateSickLeaveDuration();
 
         expect(duration).toBe(5);
+        jest.restoreAllMocks();
       });
     });
   });
@@ -1568,79 +1582,68 @@ describe('Monte Carlo Simulation', () => {
     });
 
     describe('Step 21: Capacity during onboarding', () => {
-      it('should reduce capacity by 50% when person is onboarding', () => {
+      it('should set capacity to 0 when person is onboarding', () => {
         const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
-        person.onboardingStartWeek = 0;
+        person.onboardingWeeksRemaining = 2; // Still onboarding
         person.availableCapacity = 1;
-        const currentWeek = 1;
-        const rampUpTimeInWeeks = 3;
 
-        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+        applyOnboardingCapacityReduction({ personnel: [person] });
 
-        expect(person.availableCapacity).toBe(0.5);
+        expect(person.availableCapacity).toBe(0);
       });
 
       it('should not modify capacity when person is fully onboarded', () => {
         const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
         person.availableCapacity = 1;
-        const currentWeek = 5;
-        const rampUpTimeInWeeks = 3;
+        // No onboardingWeeksRemaining means fully onboarded
 
-        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+        applyOnboardingCapacityReduction({ personnel: [person] });
 
         expect(person.availableCapacity).toBe(1);
       });
 
       it('should handle multiple personnel with different onboarding status', () => {
         const onboarding = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
-        onboarding.onboardingStartWeek = 0;
+        onboarding.onboardingWeeksRemaining = 2; // Still onboarding
         onboarding.availableCapacity = 1;
 
         const onboarded = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
         onboarded.availableCapacity = 1;
 
-        const currentWeek = 1;
-        const rampUpTimeInWeeks = 3;
+        applyOnboardingCapacityReduction({ personnel: [onboarding, onboarded] });
 
-        applyOnboardingCapacityReduction({ personnel: [onboarding, onboarded], currentWeek, rampUpTimeInWeeks });
-
-        expect(onboarding.availableCapacity).toBe(0.5); // Reduced
-        expect(onboarded.availableCapacity).toBe(1); // Not reduced
+        expect(onboarding.availableCapacity).toBe(0); // Set to zero during onboarding
+        expect(onboarded.availableCapacity).toBe(1); // Not modified
       });
 
-      it('should not reduce capacity when onboarding complete', () => {
+      it('should not reduce capacity when onboarding complete (counter is 0)', () => {
         const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
-        person.onboardingStartWeek = 0;
+        person.onboardingWeeksRemaining = 0; // Onboarding complete
         person.availableCapacity = 1;
-        const currentWeek = 3; // Onboarding complete
-        const rampUpTimeInWeeks = 3;
 
-        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+        applyOnboardingCapacityReduction({ personnel: [person] });
 
         expect(person.availableCapacity).toBe(1); // No reduction
       });
 
-      it('should handle person with no onboarding start week', () => {
+      it('should handle person with no onboarding counter', () => {
         const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
         person.availableCapacity = 1;
-        const currentWeek = 5;
-        const rampUpTimeInWeeks = 3;
+        // No onboardingWeeksRemaining set
 
-        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+        applyOnboardingCapacityReduction({ personnel: [person] });
 
         expect(person.availableCapacity).toBe(1); // No reduction
       });
 
-      it('should reduce from current capacity value', () => {
+      it('should set capacity to 0 regardless of current capacity value', () => {
         const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: false });
-        person.onboardingStartWeek = 0;
+        person.onboardingWeeksRemaining = 2; // Still onboarding
         person.availableCapacity = 0.8; // Already reduced capacity
-        const currentWeek = 1;
-        const rampUpTimeInWeeks = 3;
 
-        applyOnboardingCapacityReduction({ personnel: [person], currentWeek, rampUpTimeInWeeks });
+        applyOnboardingCapacityReduction({ personnel: [person] });
 
-        expect(person.availableCapacity).toBe(0.4); // 0.8 * 0.5
+        expect(person.availableCapacity).toBe(0); // Set to 0 during onboarding
       });
     });
   });
@@ -1648,67 +1651,74 @@ describe('Monte Carlo Simulation', () => {
   describe('Phase 7: Turnover and Replacement', () => {
     describe('Step 22: Weekly quit probability', () => {
       it('should return true when random value is below quit rate', () => {
-        const mockRandom = 0.001; // 0.1% < 0.301% quit rate
+        jest.spyOn(Math, 'random').mockReturnValue(0.001); // 0.1% < 0.301% quit rate
         const quitRate = 0.00301;
 
-        const result = shouldPersonQuit(quitRate, mockRandom);
+        const result = shouldPersonQuit(quitRate);
 
         expect(result).toBe(true);
+        jest.restoreAllMocks();
       });
 
       it('should return false when random value is above quit rate', () => {
-        const mockRandom = 0.004; // 0.4% > 0.301% quit rate
+        jest.spyOn(Math, 'random').mockReturnValue(0.004); // 0.4% > 0.301% quit rate
         const quitRate = 0.00301;
 
-        const result = shouldPersonQuit(quitRate, mockRandom);
+        const result = shouldPersonQuit(quitRate);
 
         expect(result).toBe(false);
+        jest.restoreAllMocks();
       });
 
       it('should use default quit rate (0.301%)', () => {
-        const mockRandom = 0.002; // 0.2% < 0.301%
+        jest.spyOn(Math, 'random').mockReturnValue(0.002); // 0.2% < 0.301%
         const quitRate = DEFAULT_WEEKLY_QUIT_CHANCE;
 
-        const result = shouldPersonQuit(quitRate, mockRandom);
+        const result = shouldPersonQuit(quitRate);
 
         expect(result).toBe(true);
         expect(quitRate).toBe(0.00301);
+        jest.restoreAllMocks();
       });
 
       it('should handle edge case at exactly quit rate', () => {
-        const mockRandom = 0.00301; // Exactly 0.301%
+        jest.spyOn(Math, 'random').mockReturnValue(0.00301); // Exactly 0.301%
         const quitRate = 0.00301;
 
-        const result = shouldPersonQuit(quitRate, mockRandom);
+        const result = shouldPersonQuit(quitRate);
 
         expect(result).toBe(false); // >= means no quit
+        jest.restoreAllMocks();
       });
 
       it('should always quit with 100% rate', () => {
-        const mockRandom = 0.99;
+        jest.spyOn(Math, 'random').mockReturnValue(0.99);
         const quitRate = 1.0;
 
-        const result = shouldPersonQuit(quitRate, mockRandom);
+        const result = shouldPersonQuit(quitRate);
 
         expect(result).toBe(true);
+        jest.restoreAllMocks();
       });
 
       it('should never quit with 0% rate', () => {
-        const mockRandom = 0.0;
+        jest.spyOn(Math, 'random').mockReturnValue(0.0);
         const quitRate = 0.0;
 
-        const result = shouldPersonQuit(quitRate, mockRandom);
+        const result = shouldPersonQuit(quitRate);
 
         expect(result).toBe(false);
+        jest.restoreAllMocks();
       });
 
       it('should handle very low probability correctly', () => {
-        const mockRandom = 0.00001; // Very small random
+        jest.spyOn(Math, 'random').mockReturnValue(0.00001); // Very small random
         const quitRate = 0.00301;
 
-        const result = shouldPersonQuit(quitRate, mockRandom);
+        const result = shouldPersonQuit(quitRate);
 
         expect(result).toBe(true);
+        jest.restoreAllMocks();
       });
     });
 
@@ -1812,13 +1822,13 @@ describe('Monte Carlo Simulation', () => {
         expect(replacement.onboarded).toBe(false);
       });
 
-      it('should set hiring start week to current week', () => {
+      it('should set hiring start week to next week (after departure)', () => {
         const original = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
         const currentWeek = 5;
 
         const replacement = createReplacement({ person: original, currentWeek });
 
-        expect(replacement.hiringStartWeek).toBe(5);
+        expect(replacement.hiringStartWeek).toBe(6); // Hiring starts next week
       });
 
       it('should generate unique ID for replacement', () => {
@@ -1830,15 +1840,16 @@ describe('Monte Carlo Simulation', () => {
         expect(replacement.id).toContain('p1-replacement');
       });
 
-      it('should add replacement to personnel array', () => {
+      it('should return replacement that caller can add to personnel array', () => {
         const original = new Person({ id: 'p1', name: 'Alice', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
         const personnel = [original];
         const currentWeek = 5;
 
-        const result = createReplacement({ person: original, currentWeek, personnel });
+        const replacement = createReplacement({ person: original, currentWeek });
+        personnel.push(replacement);
 
-        expect(result.personnel).toHaveLength(2);
-        expect(result.personnel).toContain(result.replacement);
+        expect(personnel).toHaveLength(2);
+        expect(personnel).toContain(replacement);
       });
     });
 
@@ -1900,44 +1911,17 @@ describe('Monte Carlo Simulation', () => {
   });
 
   describe('Phase 8: Task Start Date Constraints', () => {
-    describe('Step 26: Start date constraint loading', () => {
-      it('should return true when task has start date constraint', () => {
+    describe('isTaskStartableByDate', () => {
+      it('should return true when task has no start date constraint', () => {
         const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
-        task.onlyStartableAt = new Date('2025-06-15');
+        const currentDate = new Date('2025-06-10');
 
-        const result = hasStartDateConstraint({ task });
+        const result = isTaskStartableByDate({ task, currentDate });
 
         expect(result).toBe(true);
       });
 
-      it('should return false when task has no start date constraint', () => {
-        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
-
-        const result = hasStartDateConstraint({ task });
-
-        expect(result).toBe(false);
-      });
-
-      it('should parse date constraint correctly', () => {
-        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
-        task.onlyStartableAt = new Date('2025-06-15');
-
-        const constraint = getStartDateConstraint({ task });
-
-        expect(constraint).toEqual(new Date('2025-06-15'));
-      });
-
-      it('should return undefined when no constraint exists', () => {
-        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
-
-        const constraint = getStartDateConstraint({ task });
-
-        expect(constraint).toBeUndefined();
-      });
-    });
-
-    describe('Step 27: Date-based task blocking', () => {
-      it('should exclude task when current date before start constraint', () => {
+      it('should return false when current date is before start constraint', () => {
         const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
         task.onlyStartableAt = new Date('2025-06-15');
         const currentDate = new Date('2025-06-10');
@@ -1947,7 +1931,7 @@ describe('Monte Carlo Simulation', () => {
         expect(result).toBe(false);
       });
 
-      it('should include task when current date equals start constraint', () => {
+      it('should return true when current date equals start constraint', () => {
         const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
         task.onlyStartableAt = new Date('2025-06-15');
         const currentDate = new Date('2025-06-15');
@@ -1957,7 +1941,7 @@ describe('Monte Carlo Simulation', () => {
         expect(result).toBe(true);
       });
 
-      it('should include task when current date after start constraint', () => {
+      it('should return true when current date is after start constraint', () => {
         const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
         task.onlyStartableAt = new Date('2025-06-15');
         const currentDate = new Date('2025-06-20');
@@ -1966,16 +1950,9 @@ describe('Monte Carlo Simulation', () => {
 
         expect(result).toBe(true);
       });
+    });
 
-      it('should include task when no start date constraint', () => {
-        const task = new Task({ id: 't1', title: 'Task', type: TASK_TYPE.USER_STORY });
-        const currentDate = new Date('2025-06-10');
-
-        const result = isTaskStartableByDate({ task, currentDate });
-
-        expect(result).toBe(true);
-      });
-
+    describe('filterTasksByStartDate', () => {
       it('should filter tasks based on date constraints', () => {
         const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
         task1.onlyStartableAt = new Date('2025-06-15');
@@ -2009,20 +1986,32 @@ describe('Monte Carlo Simulation', () => {
           { completionWeek: 30, taskCompletionDates: {} },
         ];
 
-        const p50Iteration = findIterationForPercentile({ iterations, percentile: 50 });
+        const p50Iteration = findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek: 20 });
 
         expect(p50Iteration.completionWeek).toBe(20);
       });
 
-      it('should find p90 iteration correctly', () => {
+      it('should find iteration by target completion week correctly', () => {
         const iterations = Array.from({ length: 100 }, (_, i) => ({
           completionWeek: i + 10,
           taskCompletionDates: {},
         }));
 
-        const p90Iteration = findIterationForPercentile({ iterations, percentile: 90 });
+        const iteration = findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek: 99 });
 
-        expect(p90Iteration.completionWeek).toBe(99);
+        expect(iteration.completionWeek).toBe(99);
+      });
+
+      it('should find closest iteration when exact match not found', () => {
+        const iterations = [
+          { completionWeek: 10, taskCompletionDates: {} },
+          { completionWeek: 20, taskCompletionDates: {} },
+          { completionWeek: 30, taskCompletionDates: {} },
+        ];
+
+        const iteration = findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek: 22 });
+
+        expect(iteration.completionWeek).toBe(20);
       });
 
       it('should extract task completion dates from iteration', () => {
@@ -2044,7 +2033,7 @@ describe('Monte Carlo Simulation', () => {
         });
       });
 
-      it('should extract percentile timelines for multiple percentiles', () => {
+      it('should extract timeline for a target completion week', () => {
         const iterations = [
           { completionWeek: 10, taskCompletionDates: { 't1': 5, 't2': 8 } },
           { completionWeek: 15, taskCompletionDates: { 't1': 7, 't2': 12 } },
@@ -2053,13 +2042,9 @@ describe('Monte Carlo Simulation', () => {
           { completionWeek: 30, taskCompletionDates: { 't1': 15, 't2': 25 } },
         ];
 
-        const result = extractPercentilesTimeline({ iterations, percentiles: [50, 90] });
+        const result = extractTimelineForTargetCompletionWeek({ iterations, targetCompletionWeek: 20 });
 
-        expect(result).toHaveLength(2);
-        expect(result[0].percentile).toBe(50);
-        expect(result[0].timeline).toEqual({ 't1': 10, 't2': 15 });
-        expect(result[1].percentile).toBe(90);
-        expect(result[1].timeline).toEqual({ 't1': 15, 't2': 25 });
+        expect(result).toEqual({ 't1': 10, 't2': 15 });
       });
     });
 
@@ -2136,6 +2121,201 @@ describe('Monte Carlo Simulation', () => {
         expect(code).toContain('gantt');
         expect(code).toContain('Task 1');
         expect(code).toContain('Task 2');
+      });
+
+      it('should include sick leave periods in Gantt chart', () => {
+        const iteration = {
+          taskCompletionDates: {
+            't1': 5,
+          },
+          workedWeeks: [
+            { weekNumber: 1, assignments: [{ taskId: 't1', personId: 'p1', workDone: 3 }] },
+          ],
+        };
+
+        const task1 = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task1.mostProbableEstimateInRange = 5;
+        task1.remainingReworkDuration = 0;
+
+        const tasks = [task1];
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person.sickLeaves = [
+          { startWeek: 2, endWeek: 3 },
+          { startWeek: 7, endWeek: 8 },
+        ];
+
+        const personnel = [person];
+
+        const startDate = new Date('2025-01-01');
+
+        const code = generateGanttChartCode({ iteration, tasks, personnel, title: 'Timeline', startDate });
+
+        expect(code).toContain('section Sick Leaves');
+        expect(code).toContain('Alice sick');
+        expect(code).toContain('sick-p1-0');
+        expect(code).toContain('sick-p1-1');
+      });
+    });
+
+    describe('Task assignment heuristics', () => {
+      it('should assign qualified person to task', () => {
+        const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task.requiredSkills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        task.remainingDuration = 5;
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person.skills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        person.availableCapacity = 1;
+
+        const assignments = assignTasksToPersonnel({
+          tasks: [task],
+          personnel: [person],
+          assignmentCounts: new Map(),
+          skillWorkHistory: new Map(),
+        });
+
+        expect(assignments).toHaveLength(1);
+        expect(assignments[0].task.id).toBe('t1');
+        expect(assignments[0].assignedPerson.id).toBe('p1');
+      });
+
+      it('should prefer exact skill match over overqualified', () => {
+        const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task.requiredSkills = [{ name: 'javascript', minLevel: LEVEL.JUNIOR }];
+        task.remainingDuration = 5;
+
+        const juniorDev = new Person({ id: 'p1', name: 'Junior', level: LEVEL.JUNIOR, isHired: true, isOnboarded: true });
+        juniorDev.skills = [{ name: 'javascript', minLevel: LEVEL.JUNIOR }];
+        juniorDev.availableCapacity = 1;
+
+        const seniorDev = new Person({ id: 'p2', name: 'Senior', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        seniorDev.skills = [{ name: 'javascript', minLevel: LEVEL.SENIOR }];
+        seniorDev.availableCapacity = 1;
+
+        const assignments = assignTasksToPersonnel({
+          tasks: [task],
+          personnel: [juniorDev, seniorDev],
+          assignmentCounts: new Map(),
+          skillWorkHistory: new Map(),
+        });
+
+        expect(assignments).toHaveLength(1);
+        expect(assignments[0].assignedPerson.id).toBe('p1');
+      });
+
+      it('should prefer person with fewer total assignments (workload balancing)', () => {
+        const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task.requiredSkills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        task.remainingDuration = 5;
+
+        const busyDev = new Person({ id: 'p1', name: 'Busy', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        busyDev.skills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        busyDev.availableCapacity = 1;
+
+        const freeDev = new Person({ id: 'p2', name: 'Free', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        freeDev.skills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        freeDev.availableCapacity = 1;
+
+        const assignmentCounts = new Map([['p1', 5], ['p2', 1]]);
+
+        const assignments = assignTasksToPersonnel({
+          tasks: [task],
+          personnel: [busyDev, freeDev],
+          assignmentCounts,
+          skillWorkHistory: new Map(),
+        });
+
+        expect(assignments).toHaveLength(1);
+        expect(assignments[0].assignedPerson.id).toBe('p2');
+      });
+
+      it('should prefer last assignee for continuity', () => {
+        const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task.requiredSkills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        task.remainingDuration = 5;
+        task.lastAssignee = 'p1';
+
+        const alice = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        alice.skills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        alice.availableCapacity = 1;
+
+        const bob = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        bob.skills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        bob.availableCapacity = 1;
+
+        const assignments = assignTasksToPersonnel({
+          tasks: [task],
+          personnel: [alice, bob],
+          assignmentCounts: new Map(),
+          skillWorkHistory: new Map(),
+        });
+
+        expect(assignments).toHaveLength(1);
+        expect(assignments[0].assignedPerson.id).toBe('p1');
+      });
+
+      it('should prefer spreading knowledge across team', () => {
+        const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task.requiredSkills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        task.remainingDuration = 5;
+
+        const alice = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        alice.skills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        alice.availableCapacity = 1;
+
+        const bob = new Person({ id: 'p2', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        bob.skills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        bob.availableCapacity = 1;
+
+        // Alice has already worked on javascript, Bob hasn't
+        const skillWorkHistory = new Map([['javascript', new Set(['p1'])]]);
+
+        const assignments = assignTasksToPersonnel({
+          tasks: [task],
+          personnel: [alice, bob],
+          assignmentCounts: new Map(),
+          skillWorkHistory,
+        });
+
+        expect(assignments).toHaveLength(1);
+        expect(assignments[0].assignedPerson.id).toBe('p2');
+      });
+
+      it('should not assign tasks to people without required skills', () => {
+        const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task.requiredSkills = [{ name: 'javascript', minLevel: LEVEL.MID }];
+        task.remainingDuration = 5;
+
+        const pythonDev = new Person({ id: 'p1', name: 'Python Dev', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+        pythonDev.skills = [{ name: 'python', minLevel: LEVEL.SENIOR }];
+        pythonDev.availableCapacity = 1;
+
+        const assignments = assignTasksToPersonnel({
+          tasks: [task],
+          personnel: [pythonDev],
+          assignmentCounts: new Map(),
+          skillWorkHistory: new Map(),
+        });
+
+        expect(assignments).toHaveLength(0);
+      });
+
+      it('should not assign tasks to people with no capacity', () => {
+        const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+        task.remainingDuration = 5;
+
+        const person = new Person({ id: 'p1', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+        person.availableCapacity = 0;
+
+        const assignments = assignTasksToPersonnel({
+          tasks: [task],
+          personnel: [person],
+          assignmentCounts: new Map(),
+          skillWorkHistory: new Map(),
+        });
+
+        expect(assignments).toHaveLength(0);
       });
     });
   });

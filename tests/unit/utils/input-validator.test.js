@@ -372,17 +372,43 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
     it('should accept valid task with all optional fields', () => {
       const input = {
         ...validInput,
-        tasks: [{
-          id: 't1',
-          title: 'Test',
-          type: TASK_TYPE.USER_STORY,
-          fibonacciEstimate: 5,
-          mostProbableEstimateInRange: 3,
-          onlyStartableAt: '2025-02-01',
-          parents: ['epic1'],
-          dependsOnTasks: ['t2'],
-          requiredSkills: [{ name: 'JavaScript', minLevel: LEVEL.MID }]
-        }]
+        tasks: [
+          {
+            id: 'epic1',
+            title: 'Epic',
+            type: TASK_TYPE.EPIC,
+            fibonacciEstimate: 0,
+            mostProbableEstimateInRange: 0
+          },
+          {
+            id: 't2',
+            title: 'Dependency',
+            type: TASK_TYPE.USER_STORY,
+            fibonacciEstimate: 3,
+            mostProbableEstimateInRange: 2
+          },
+          {
+            id: 't1',
+            title: 'Test',
+            type: TASK_TYPE.USER_STORY,
+            fibonacciEstimate: 5,
+            mostProbableEstimateInRange: 3,
+            onlyStartableAt: '2025-02-01',
+            parents: ['epic1'],
+            dependsOnTasks: ['t2'],
+            requiredSkills: [{ name: 'JavaScript', minLevel: LEVEL.MID }]
+          }
+        ],
+        personnel: [
+          {
+            id: 'dev1',
+            name: 'Developer',
+            level: LEVEL.SENIOR,
+            hired: true,
+            onboarded: true,
+            skills: [{ name: 'JavaScript', minLevel: LEVEL.SENIOR }]
+          }
+        ]
       };
       expect(() => inputValidator(input)).not.toThrow();
     });
@@ -604,6 +630,299 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
         }]
       };
       expect(() => inputValidator(input)).toThrow();
+    });
+
+    it('should throw error when onboarded is true but hired is false', () => {
+      const input = {
+        ...validInput,
+        personnel: [{
+          id: 'p1',
+          name: 'Test',
+          level: LEVEL.MID,
+          hired: false,
+          onboarded: true
+        }]
+      };
+      expect(() => inputValidator(input)).toThrow(/onboarded.*hired/i);
+    });
+
+    it('should accept personnel with hired=false and onboarded=false', () => {
+      const input = {
+        ...validInput,
+        personnel: [{
+          id: 'p1',
+          name: 'Test',
+          level: LEVEL.MID,
+          hired: false,
+          onboarded: false
+        }]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should accept personnel with hired=true and onboarded=false', () => {
+      const input = {
+        ...validInput,
+        personnel: [{
+          id: 'p1',
+          name: 'Test',
+          level: LEVEL.MID,
+          hired: true,
+          onboarded: false
+        }]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+  });
+
+  describe('task hierarchy validation', () => {
+    const createTask = (overrides) => ({
+      id: 't1',
+      title: 'Test Task',
+      type: TASK_TYPE.USER_STORY,
+      fibonacciEstimate: 5,
+      mostProbableEstimateInRange: 3,
+      ...overrides
+    });
+
+    it('should throw error when task parent is a user-story', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'parent', type: TASK_TYPE.USER_STORY }),
+          createTask({ id: 'child', parents: ['parent'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/parent.*epic.*milestone.*project/i);
+    });
+
+    it('should throw error when task parent is a spike', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'parent', type: TASK_TYPE.SPIKE }),
+          createTask({ id: 'child', parents: ['parent'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/parent.*epic.*milestone.*project/i);
+    });
+
+    it('should throw error when task parent is a tech-task', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'parent', type: TASK_TYPE.TECH_TASK }),
+          createTask({ id: 'child', parents: ['parent'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/parent.*epic.*milestone.*project/i);
+    });
+
+    it('should throw error when task parent is a bug', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'parent', type: TASK_TYPE.BUG }),
+          createTask({ id: 'child', parents: ['parent'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/parent.*epic.*milestone.*project/i);
+    });
+
+    it('should accept task with epic as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'epic1', type: TASK_TYPE.EPIC }),
+          createTask({ id: 'child', parents: ['epic1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should accept task with milestone as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'milestone1', type: TASK_TYPE.MILESTONE }),
+          createTask({ id: 'child', parents: ['milestone1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should accept task with project as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'project1', type: TASK_TYPE.PROJECT }),
+          createTask({ id: 'child', parents: ['project1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should throw error when epic has another epic as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'epic1', type: TASK_TYPE.EPIC }),
+          createTask({ id: 'epic2', type: TASK_TYPE.EPIC, parents: ['epic1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/epic.*cannot.*epic.*parent/i);
+    });
+
+    it('should accept epic with milestone as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'milestone1', type: TASK_TYPE.MILESTONE }),
+          createTask({ id: 'epic1', type: TASK_TYPE.EPIC, parents: ['milestone1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should accept epic with project as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'project1', type: TASK_TYPE.PROJECT }),
+          createTask({ id: 'epic1', type: TASK_TYPE.EPIC, parents: ['project1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should throw error when milestone has epic as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'epic1', type: TASK_TYPE.EPIC }),
+          createTask({ id: 'milestone1', type: TASK_TYPE.MILESTONE, parents: ['epic1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/milestone.*only.*project.*parent/i);
+    });
+
+    it('should throw error when milestone has milestone as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'milestone1', type: TASK_TYPE.MILESTONE }),
+          createTask({ id: 'milestone2', type: TASK_TYPE.MILESTONE, parents: ['milestone1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/milestone.*only.*project.*parent/i);
+    });
+
+    it('should accept milestone with project as parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'project1', type: TASK_TYPE.PROJECT }),
+          createTask({ id: 'milestone1', type: TASK_TYPE.MILESTONE, parents: ['project1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should throw error when project has any parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'project1', type: TASK_TYPE.PROJECT }),
+          createTask({ id: 'project2', type: TASK_TYPE.PROJECT, parents: ['project1'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/project.*cannot.*parent/i);
+    });
+
+    it('should accept project without parent', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'project1', type: TASK_TYPE.PROJECT, parents: [] })
+        ]
+      };
+      expect(() => inputValidator(input)).not.toThrow();
+    });
+
+    it('should throw error when parent task does not exist', () => {
+      const input = {
+        ...validInput,
+        tasks: [
+          createTask({ id: 'child', parents: ['nonexistent'] })
+        ]
+      };
+      expect(() => inputValidator(input)).toThrow(/parent.*nonexistent.*not found/i);
+    });
+  });
+
+  describe('default values', () => {
+    it('should apply default values to tasks.parents when not provided', () => {
+      const input = {
+        ...validInput,
+        tasks: [{
+          id: 't1',
+          title: 'Test',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3
+          // parents not provided
+        }]
+      };
+      inputValidator(input);
+      expect(input.tasks[0].parents).toEqual([]);
+    });
+
+    it('should apply default values to tasks.dependsOnTasks when not provided', () => {
+      const input = {
+        ...validInput,
+        tasks: [{
+          id: 't1',
+          title: 'Test',
+          type: TASK_TYPE.USER_STORY,
+          fibonacciEstimate: 5,
+          mostProbableEstimateInRange: 3
+          // dependsOnTasks not provided
+        }]
+      };
+      inputValidator(input);
+      expect(input.tasks[0].dependsOnTasks).toEqual([]);
+    });
+
+    it('should apply default values to personnel.skills when not provided', () => {
+      const input = {
+        ...validInput,
+        personnel: [{
+          id: 'p1',
+          name: 'Test',
+          level: LEVEL.MID,
+          hired: true,
+          onboarded: true
+          // skills not provided
+        }]
+      };
+      inputValidator(input);
+      expect(input.personnel[0].skills).toEqual([]);
+    });
+
+    it('should apply default values to personnel.vacationsAt when not provided', () => {
+      const input = {
+        ...validInput,
+        personnel: [{
+          id: 'p1',
+          name: 'Test',
+          level: LEVEL.MID,
+          hired: true,
+          onboarded: true
+          // vacationsAt not provided
+        }]
+      };
+      inputValidator(input);
+      expect(input.personnel[0].vacationsAt).toEqual([]);
     });
   });
 });

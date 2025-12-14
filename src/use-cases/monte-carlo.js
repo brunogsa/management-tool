@@ -1,6 +1,5 @@
 import inputValidator from '../utils/input-validator.js';
 import {
-  deepClone,
   getTaskMap,
   attachAllDescendantsFromParentProps,
   attachBlockedTasksFromDependsOnProps,
@@ -10,17 +9,46 @@ import {
 import {
   runMultipleIterations,
   calculatePercentiles,
-  findIterationForPercentile,
+  findClosestIterationForTargetCompletionWeek,
   generateGanttChartCode,
   generateChangeRequests,
   injectChangeRequestsIntoTaskList,
 } from '../utils/monte-carlo.js';
 
 
+// Normalize string dates to Date objects for consistent handling throughout the simulation
+function _normalizeDateFields({ tasks, personnel }) {
+  for (const task of tasks) {
+    if (task.onlyStartableAt && !(task.onlyStartableAt instanceof Date)) {
+      task.onlyStartableAt = new Date(task.onlyStartableAt);
+    }
+  }
+
+  for (const person of personnel) {
+    if (person.startDate && !(person.startDate instanceof Date)) {
+      person.startDate = new Date(person.startDate);
+    }
+
+    if (person.vacationsAt) {
+      for (const vacation of person.vacationsAt) {
+        if (vacation.from && !(vacation.from instanceof Date)) {
+          vacation.from = new Date(vacation.from);
+        }
+        if (vacation.to && !(vacation.to instanceof Date)) {
+          vacation.to = new Date(vacation.to);
+        }
+      }
+    }
+  }
+}
+
 function monteCarloUseCase(inputData) {
   inputValidator(inputData);
 
   const { globalParams, tasks, personnel } = inputData;
+
+  // Normalize dates immediately after validation
+  _normalizeDateFields({ tasks, personnel });
 
   const taskMap = getTaskMap(tasks);
 
@@ -44,8 +72,11 @@ function monteCarloUseCase(inputData) {
       changeRequestTasks,
     });
 
-    // AI, not sure we need to re-run the thing below, probably just once is fine (gotta investigate)
-    // Re-run graph calculations
+    // Graph recalculation IS needed after injecting change requests because:
+    // 1. attachAllDescendantsFromParentProps: Sets children[] on changeRequestMilestone
+    // 2. attachBlockedTasksFromDependsOnProps: Calculates blocking relationships for new tasks
+    // 3. populateContainerEstimates: Sums up estimates for the changeRequestMilestone container
+    // 4. attachBlockingCounts: Updates totalNumOfBlocks used for task priority sorting
     attachAllDescendantsFromParentProps(tasks, taskMap);
     attachBlockedTasksFromDependsOnProps(tasks, taskMap);
     populateContainerEstimates(tasks, taskMap);
@@ -59,18 +90,19 @@ function monteCarloUseCase(inputData) {
     tasks,
     personnel,
     numIterations: globalParams.numOfMonteCarloIterations,
-    globalParams, // AI, could probably pass only what it needs explicitly
+    globalParams,
     startDate,
   });
 
-  // Calculate percentiles
+  // Calculate completion week for each percentile
+  const percentilesOfInterest = [50, 75, 90, 95, 99];
   const completionWeeks = iterations.map(iter => iter.completionWeek);
-  const percentiles = calculatePercentiles(completionWeeks);
+  const completionWeekPercentiles = calculatePercentiles(completionWeeks, percentilesOfInterest);
 
   // Generate Gantt charts for key percentiles
-  const percentilesOfInterest = [50, 75, 90, 95, 99];
   const ganttCharts = percentilesOfInterest.map(percentile => {
-    const iteration = findIterationForPercentile({ iterations, percentile });
+    const targetCompletionWeek = completionWeekPercentiles[`p${percentile}`];
+    const iteration = findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek });
 
     return {
       identifier: `${percentile}th`,
@@ -86,7 +118,7 @@ function monteCarloUseCase(inputData) {
 
   return {
     listOfSimulations: iterations,
-    percentiles,
+    completionWeekPercentiles,
     ganttCharts,
   };
 }

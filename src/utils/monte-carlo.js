@@ -1,6 +1,8 @@
 import { deepClone } from './graph.js';
+import { info, debug } from './logger.js';
 import {
   LEVEL,
+  LEVEL_RANK,
   DEFAULT_VELOCITY_RATE,
   DEFAULT_TASK_SPLIT_RATE,
   DEFAULT_WEEKLY_SICK_CHANCE,
@@ -8,7 +10,8 @@ import {
   Task,
   Person,
   TASK_TYPE,
-  isContainerTask
+  isContainerTask,
+  getNextFibonacci
 } from '../models.js';
 
 const LEVEL_HIERARCHY = [
@@ -22,8 +25,87 @@ const LEVEL_HIERARCHY = [
 const WEEKS_PER_YEAR = 52;
 const VACATION_WEEKS_PER_YEAR = 4;
 
+// Heuristic weights for task assignment scoring
+const ASSIGNMENT_HEURISTIC_WEIGHTS = {
+  affinity: 0.35,
+  workload: 0.25,
+  continuity: 0.20,
+  seniority: 0.10,
+  knowledgeSpread: 0.10,
+};
+
 function _getLevelRank(level) {
   return LEVEL_HIERARCHY.indexOf(level);
+}
+
+// Helper to check if task is done (works with both class instances and plain objects from deepClone)
+function _isTaskDone(task) {
+  if (typeof task.isDone === 'function') {
+    return task.isDone();
+  }
+  // Fallback for plain objects (after deepClone)
+  return task.remainingDuration <= 0 && task.remainingReworkDuration <= 0;
+}
+
+// Helper to account work on a task (works with both class instances and plain objects)
+function _accountWork(task, spentDuration, reworkRateToConsider) {
+  if (typeof task.accountWork === 'function') {
+    return task.accountWork(spentDuration, reworkRateToConsider);
+  }
+  // Fallback for plain objects (after deepClone)
+  if (task.remainingDuration === undefined) {
+    task.remainingDuration = 0;
+  }
+  if (task.remainingReworkDuration === undefined) {
+    task.remainingReworkDuration = 0;
+  }
+
+  if (task.remainingDuration >= spentDuration) {
+    task.remainingDuration -= spentDuration;
+    task.remainingReworkDuration += spentDuration * reworkRateToConsider;
+    task.remainingReworkDuration = Math.round(task.remainingReworkDuration * 1e10) / 1e10;
+    return;
+  }
+
+  const spentOnOriginal = task.remainingDuration;
+  task.remainingDuration = 0;
+  task.remainingReworkDuration += spentOnOriginal * reworkRateToConsider;
+
+  const spentOnRework = spentDuration - spentOnOriginal;
+  task.remainingReworkDuration = Math.max(0, task.remainingReworkDuration - spentOnRework);
+  task.remainingReworkDuration = Math.round(task.remainingReworkDuration * 1e10) / 1e10;
+}
+
+// Helper to check if person is sick (works with both class instances and plain objects from deepClone)
+function _isPersonSick(person, currentWeek) {
+  if (typeof person.isSick === 'function') {
+    return person.isSick(currentWeek);
+  }
+  // Fallback for plain objects (after deepClone)
+  if (!person.sickUntilWeek) {
+    return false;
+  }
+  return currentWeek <= person.sickUntilWeek;
+}
+
+// Helper to check if person is on vacation (works with both class instances and plain objects)
+function _isPersonOnVacation(person, currentDate) {
+  if (typeof person.isOnVacation === 'function') {
+    return person.isOnVacation(currentDate);
+  }
+  // Fallback for plain objects (after deepClone)
+  if (!person.vacationsAt || person.vacationsAt.length === 0) {
+    return false;
+  }
+  const dateToCheck = currentDate instanceof Date ? currentDate : new Date(currentDate);
+  for (const vacation of person.vacationsAt) {
+    const fromDate = vacation.from instanceof Date ? vacation.from : new Date(vacation.from);
+    const toDate = vacation.to instanceof Date ? vacation.to : new Date(vacation.to);
+    if (dateToCheck >= fromDate && dateToCheck <= toDate) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function _isLevelSufficient(personLevel, requiredLevel) {
@@ -34,6 +116,11 @@ function initializeSimulationState() {
   return {
     currentWeek: 0,
     workedWeeks: [],
+    // Track total assignments per person (for workload balancing heuristic)
+    assignmentCounts: new Map(),
+    // Track which skills each person has worked on (for knowledge spread heuristic)
+    // Maps skillName -> Set of personIds
+    skillWorkHistory: new Map(),
   };
 }
 
@@ -57,23 +144,44 @@ function recordWeeklyWork({ state, task, person, workDone }) {
   });
 }
 
-function findStartableTasks(tasks) {
-  // Create a map for quick lookup
-  const taskMap = new Map(tasks.map(t => [t.id, t])); // AI, this should be passed around, already calculated
+// Updates tracking maps used by the assignment heuristics
+// Assumes state.assignmentCounts and state.skillWorkHistory are already initialized
+function _updateAssignmentTracking({ assignments, state }) {
+  for (const { task, assignedPerson } of assignments) {
+    // Increment assignment count for person
+    const currentCount = state.assignmentCounts.get(assignedPerson.id) || 0;
+    state.assignmentCounts.set(assignedPerson.id, currentCount + 1);
 
-  // AI, we should filter task.onlyStartableAt below as well (not in other functions)
+    // Update skill work history
+    if (task.requiredSkills) {
+      for (const skill of task.requiredSkills) {
+        if (!state.skillWorkHistory.has(skill.name)) {
+          state.skillWorkHistory.set(skill.name, new Set());
+        }
+        state.skillWorkHistory.get(skill.name).add(assignedPerson.id);
+      }
+    }
+
+    // Track last assignee for continuity
+    task.lastAssignee = assignedPerson.id;
+  }
+}
+
+function findStartableTasks(tasks, taskMap) {
+  // Use provided taskMap or create one for quick lookup
+  const map = taskMap || new Map(tasks.map(t => [t.id, t]));
 
   return tasks.filter(task => {
     // Task must have remaining work
-    const isNotCompleted = task.isDone();
+    const hasRemainingWork = !_isTaskDone(task);
 
     // All dependencies must be complete
     const allDependenciesCompleted = !task.dependsOnTasks || task.dependsOnTasks.length === 0 || task.dependsOnTasks.every(depId => {
-      const depTask = taskMap.get(depId);
-      return depTask && depTask.isDone();
+      const depTask = map.get(depId);
+      return depTask && _isTaskDone(depTask);
     });
 
-    return isNotCompleted && allDependenciesCompleted;
+    return hasRemainingWork && allDependenciesCompleted;
   });
 }
 
@@ -83,14 +191,115 @@ function isPersonQualifiedForTask({ person, task }) {
   }
 
   return task.requiredSkills.every(requiredSkill => {
-    const personSkill = person.skills.find(s => s.name === requiredSkill.name);
+    const matchingSkill = person.skills.find(s => s.name === requiredSkill.name);
 
-    if (!personSkill) {
+    if (!matchingSkill) {
       return false;
     }
 
-    return _isLevelSufficient(personSkill.minLevel, requiredSkill.minLevel);
+    return _isLevelSufficient(matchingSkill.minLevel, requiredSkill.minLevel);
   });
+}
+
+// Scoring function for skill affinity: measures how well person's skills match task requirements
+// Returns value between 0 and 1. Considers:
+// - Whether person has all required skills at sufficient level
+// - Exact level matches are preferred (1.0) over overqualified (0.8)
+// - Person with fewer total skills gets higher score (less overqualified)
+function _calculateSkillAffinity({ person, task }) {
+  if (!task.requiredSkills || task.requiredSkills.length === 0) {
+    return 1.0;
+  }
+
+  let matchScore = 0;
+  for (const requiredSkill of task.requiredSkills) {
+    const matchingSkill = person.skills.find(s => s.name === requiredSkill.name);
+
+    if (!matchingSkill) {
+      return 0;
+    }
+
+    const personLevelRank = LEVEL_RANK[matchingSkill.minLevel] || 0;
+    const requiredLevelRank = LEVEL_RANK[requiredSkill.minLevel] || 0;
+
+    if (personLevelRank < requiredLevelRank) {
+      return 0;
+    }
+
+    // Exact match is preferred (1.0), overqualified gets slightly lower score (0.8)
+    const isExactMatch = personLevelRank === requiredLevelRank;
+    matchScore += isExactMatch ? 1.0 : 0.8;
+  }
+
+  const skillMatchRatio = matchScore / task.requiredSkills.length;
+
+  // Penalize people with many extra skills (they're overqualified for this task)
+  const totalPersonSkills = person.skills?.length || 0;
+  const numRequiredSkills = task.requiredSkills.length;
+  const overqualificationPenalty = totalPersonSkills > numRequiredSkills
+    ? numRequiredSkills / totalPersonSkills
+    : 1.0;
+
+  return skillMatchRatio * overqualificationPenalty;
+}
+
+// Scoring function for workload balancing: prefers people with fewer active assignments
+// Returns score between 0 and 1, where 1 means least loaded
+function _calculateWorkloadScore({ person, assignmentCounts }) {
+  const currentCount = assignmentCounts.get(person.id) || 0;
+  const maxCount = Math.max(...assignmentCounts.values(), 1);
+  return 1 - (currentCount / (maxCount + 1));
+}
+
+// Scoring function for task continuity: prefers continuing with the same person
+// Returns 1.0 if person was last assignee, 0 otherwise
+function _calculateContinuityScore({ person, task }) {
+  return task.lastAssignee === person.id ? 1.0 : 0;
+}
+
+// Scoring function for knowledge spread: prefers spreading skill knowledge across the team
+// Returns higher score for people who haven't worked on this skill area yet
+// skillWorkHistory maps skillName -> Set of personIds who have worked on it
+function _calculateKnowledgeSpreadScore({ person, task, skillWorkHistory }) {
+  if (!task.requiredSkills || task.requiredSkills.length === 0) {
+    return 1.0;
+  }
+
+  let spreadScore = 0;
+  for (const requiredSkill of task.requiredSkills) {
+    const workersOnSkill = skillWorkHistory.get(requiredSkill.name);
+
+    if (!workersOnSkill || workersOnSkill.size === 0) {
+      // No one has worked on this skill yet - high score for spreading
+      spreadScore += 1.0;
+    } else if (!workersOnSkill.has(person.id)) {
+      // Person hasn't worked on this skill - prefer them to spread knowledge
+      spreadScore += 0.8;
+    } else {
+      // Person already worked on this skill - lower score
+      spreadScore += 0.3;
+    }
+  }
+
+  return spreadScore / task.requiredSkills.length;
+}
+
+// Combined scoring function for candidate evaluation
+// Weights different factors to produce overall suitability score
+function _scoreCandidateForTask({ person, task, assignmentCounts, skillWorkHistory }) {
+  const affinity = _calculateSkillAffinity({ person, task });
+  const workload = _calculateWorkloadScore({ person, assignmentCounts });
+  const continuity = _calculateContinuityScore({ person, task });
+  const seniority = (LEVEL_RANK[person.level] || 0) / 5;
+  const knowledgeSpread = _calculateKnowledgeSpreadScore({ person, task, skillWorkHistory });
+
+  return (
+    ASSIGNMENT_HEURISTIC_WEIGHTS.affinity * affinity +
+    ASSIGNMENT_HEURISTIC_WEIGHTS.workload * workload +
+    ASSIGNMENT_HEURISTIC_WEIGHTS.continuity * continuity +
+    ASSIGNMENT_HEURISTIC_WEIGHTS.seniority * seniority +
+    ASSIGNMENT_HEURISTIC_WEIGHTS.knowledgeSpread * knowledgeSpread
+  );
 }
 
 function assignWorkToTask({ task, person, weeksOfWork }) {
@@ -118,12 +327,7 @@ function assignWorkToTask({ task, person, weeksOfWork }) {
   return actualWork;
 }
 
-function _processPersonnelLifecycle({ personnel, state, globalParams, currentDate }) {
-  // Schedule automatic vacations periodically
-  if (state.currentWeek % WEEKS_PER_YEAR === 0) { // AI, some people might have had vacaction, and not worked enough: state.currentWeek >= WEEKS_PER_YEAR && someoneHasWorkedAYear
-    scheduleAutomaticVacations({ personnel, currentWeek: state.currentWeek, startDate: currentDate });
-  }
-
+function _processPersonnelLifecycle({ personnel, state, globalParams, currentDate, logContext = {} }) {
   // Reset personnel capacity
   for (const person of personnel) {
     person.availableCapacity = 1;
@@ -135,15 +339,23 @@ function _processPersonnelLifecycle({ personnel, state, globalParams, currentDat
   // Process sick leave
   for (const person of personnel) {
     // Start new sick leave if person gets sick
-    if (!person.sickUntilWeek && shouldPersonGetSick(globalParams.sickRate || DEFAULT_WEEKLY_SICK_CHANCE, Math.random())) {
-      const duration = generateSickLeaveDuration(Math.random());
+    if (!person.sickUntilWeek && shouldPersonGetSick(globalParams.sickRate)) {
+      const duration = generateSickLeaveDuration();
       person.sickUntilWeek = state.currentWeek + duration;
+      info('Person got sick', { personId: person.id, duration, ...logContext });
+
+      // Track sick leave periods for Gantt chart
+      if (!person.sickLeaves) {
+        person.sickLeaves = [];
+      }
+      person.sickLeaves.push({
+        startWeek: state.currentWeek,
+        endWeek: person.sickUntilWeek,
+      });
     }
 
-    // AI, we should also have sick calendar as well, for generating the gantt charts
-
     // Reduce capacity if currently sick
-    if (person.sickUntilWeek && state.currentWeek <= person.sickUntilWeek) { // AI, should have a method Person.isSick(currentWeek)
+    if (_isPersonSick(person, state.currentWeek)) {
       person.availableCapacity = 0;
     } else if (person.sickUntilWeek && state.currentWeek > person.sickUntilWeek) {
       // Clear sick leave marker after recovery
@@ -153,71 +365,95 @@ function _processPersonnelLifecycle({ personnel, state, globalParams, currentDat
 
   // Process turnover
   for (const person of personnel) {
-    if (!person.hasDeparted && shouldPersonQuit(globalParams.turnOverRate || DEFAULT_WEEKLY_QUIT_CHANCE, Math.random())) {
+    if (!person.hasDeparted && shouldPersonQuit(globalParams.turnOverRate)) {
       markPersonAsDeparted({ person });
-      createReplacement({ person, currentWeek: state.currentWeek, personnel });
-      // The logic for adding the replacement to the personnel should be here somewhere
+      const replacement = createReplacement({ person, currentWeek: state.currentWeek });
+      personnel.push(replacement);
+      info('Person quit and was replaced', { personId: person.id, replacementId: replacement.id, ...logContext });
     }
   }
 
-  // AI, below we should decrement some kind of counter like we did for sick leaves, but for hiring and onboarding
-
-  // Process hiring completion
+  // Process hiring/onboarding counters (decrement like sick leaves)
   for (const person of personnel) {
-    const hiringTime = globalParams.timeToHireByLevel[person.level];
-    completeHiring({ person, currentWeek: state.currentWeek, hiringTimeInWeeks: hiringTime });
-  }
+    // Initialize hiring counter when hiring starts
+    if (person.hiringStartWeek !== undefined && person.hiringWeeksRemaining === undefined) {
+      const hiringTime = globalParams.timeToHireByLevel[person.level];
+      person.hiringWeeksRemaining = hiringTime;
+    }
 
-  // Start onboarding
-  for (const person of personnel) {
-    const hiringTime = globalParams.timeToHireByLevel[person.level];
-    if (isHiringComplete({ person, currentWeek: state.currentWeek, hiringTimeInWeeks: hiringTime })) {
-      startOnboarding({ person, currentWeek: state.currentWeek, hiringTimeInWeeks: hiringTime });
+    // Decrement hiring counter
+    if (person.hiringWeeksRemaining !== undefined && person.hiringWeeksRemaining > 0) {
+      person.hiringWeeksRemaining--;
+    }
+
+    // Complete hiring when counter reaches 0
+    if (person.hiringWeeksRemaining !== undefined && person.hiringWeeksRemaining <= 0 && !person.hired) {
+      person.hired = true;
+      info('Person hired', { personId: person.id, personLevel: person.level, ...logContext });
+
+      // Initialize onboarding counter
+      const rampUpTime = globalParams.timeToRampUpByLevel[person.level];
+      person.onboardingWeeksRemaining = rampUpTime;
+    }
+
+    // Decrement onboarding counter
+    if (person.onboardingWeeksRemaining !== undefined && person.onboardingWeeksRemaining > 0) {
+      person.onboardingWeeksRemaining--;
+    }
+
+    // Complete onboarding when counter reaches 0
+    if (person.onboardingWeeksRemaining !== undefined && person.onboardingWeeksRemaining <= 0 && !person.onboarded) {
+      person.onboarded = true;
+      info('Person onboarded', { personId: person.id, personLevel: person.level, ...logContext });
     }
   }
 
-  // Process onboarding completion
+  // Apply onboarding capacity (set to 0 for people still onboarding)
+  applyOnboardingCapacityReduction({ personnel });
+
+  // Track worked weeks per person and schedule vacations based on actual work
+  // Onboarding counts as work, but vacation and sick leave do not
+
+  // Build vacation calendar once for conflict checking (performance optimization)
+  const vacationCalendar = _buildVacationCalendar({ personnel, startDate: currentDate });
+
   for (const person of personnel) {
-    const rampUpTime = globalParams.timeToRampUpByLevel[person.level];
-    completeOnboarding({ person, currentWeek: state.currentWeek, rampUpTimeInWeeks: rampUpTime });
+    if (person.hasDeparted) continue;
+    if (!isPersonHired({ person })) continue;
+
+    const isOnVacation = _isPersonOnVacation(person, currentDate);
+    const isSick = _isPersonSick(person, state.currentWeek);
+    if (isOnVacation || isSick) continue;
+
+    person.workedWeeks = (person.workedWeeks || 0) + 1;
+
+    // Schedule vacation when person completes a full year of actual work
+    const hasWorkedAYear = person.workedWeeks / WEEKS_PER_YEAR >= 1;
+    if (hasWorkedAYear) {
+      _scheduleVacationForPerson({ person, currentWeek: state.currentWeek, startDate: currentDate, vacationCalendar });
+      person.workedWeeks = 0;
+      debug('Vacation scheduled', { personId: person.id, ...logContext });
+    }
   }
-
-  // AI, people onboarding should have capacity = 0 (not reduced, zero)
-
-  // Apply onboarding capacity reduction
-  const maxRampUpTime = Math.max(...Object.values(globalParams.timeToRampUpByLevel));
-  applyOnboardingCapacityReduction({ personnel, currentWeek: state.currentWeek, rampUpTimeInWeeks: maxRampUpTime });
 }
 
-function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, currentDate, taskCompletionDates }) {
-  // AI, below we shouls check as well: !p.isSick() and !p.isOnVacation()
-  // Filter available personnel
-  const availablePersonnel = personnel.filter(p =>
+function _getAvailablePersonnel({ personnel, currentWeek, currentDate }) {
+  return personnel.filter(p =>
     isPersonHired({ person: p }) &&
     isPersonOnboarded({ person: p }) &&
     !p.hasDeparted &&
     p.availableCapacity > 0 &&
-    isPersonAvailableByDate({ person: p, currentDate, globalParams }) // AI, this func should not be necessary if we used isSick() and isOnVacation()
+    !_isPersonSick(p, currentWeek) &&
+    !_isPersonOnVacation(p, currentDate)
   );
+}
 
-  // Find startable tasks
-  let startableTasks = findStartableTasks(tasks);
+function _getStartableTasks({ tasks, currentDate }) {
+  const startable = findStartableTasks(tasks);
+  return filterTasksByStartDate({ tasks: startable, currentDate });
+}
 
-  // Filter by date constraints
-  startableTasks = filterTasksByStartDate({ tasks: startableTasks, currentDate });
-
-  if (startableTasks.length === 0) {
-    // AI: Instead of returning `hadWork` on this func, we should probably split it in 3: getStartableTasks, assignTasksToPersonnel and executeAssignedWork. The upper function should then orchestrate them to do what it needs to
-    return false;
-  }
-
-  // Assign tasks to personnel using heuristic
-  const assignments = assignTasksToPersonnel({
-    tasks: startableTasks,
-    personnel: availablePersonnel,
-  });
-
-  // Execute assignments
+function _executeAssignments({ assignments, state, globalParams, taskCompletionDates, logContext = {} }) {
   for (const { task, assignedPerson } of assignments) {
     const reworkRate = globalParams.reworkRateByLevel[assignedPerson.level];
     const velocityRate = globalParams.velocityByLevel[assignedPerson.level];
@@ -227,7 +463,7 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
       task.remainingDuration + task.remainingReworkDuration
     );
 
-    task.accountWork(actualWork, reworkRate);
+    _accountWork(task, actualWork, reworkRate);
     assignedPerson.availableCapacity -= actualWork;
 
     // Record weekly work
@@ -239,38 +475,177 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
     });
 
     // Track completion
-    if (task.isDone() && !taskCompletionDates[task.id]) {
+    if (_isTaskDone(task) && !taskCompletionDates[task.id]) {
       taskCompletionDates[task.id] = state.currentWeek;
+      info('Task completed', { taskId: task.id, completionWeek: state.currentWeek, ...logContext });
     }
   }
+}
 
-  // AI, we currently have a limitation above: people might be assigned to a short task that does not consume that person entires week capacity. I.e., while people has available capacity, we should keep reassigning tasks to them (until the everyone capacity is consumed or tasks are no longer available)
+function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, currentDate, taskCompletionDates, logContext = {} }) {
+  let hadAnyWork = false;
 
-  return true;
+  // Keep assigning until no more work can be done (allows multiple tasks per person per week)
+  while (true) {
+    const availablePersonnel = _getAvailablePersonnel({
+      personnel,
+      currentWeek: state.currentWeek,
+      currentDate,
+    });
+
+    if (availablePersonnel.length === 0) {
+      break;
+    }
+
+    const startableTasks = _getStartableTasks({ tasks, currentDate });
+
+    if (startableTasks.length === 0) {
+      break;
+    }
+
+    const assignments = assignTasksToPersonnel({
+      tasks: startableTasks,
+      personnel: availablePersonnel,
+      assignmentCounts: state.assignmentCounts,
+      skillWorkHistory: state.skillWorkHistory,
+      logContext,
+    });
+
+    if (assignments.length === 0) {
+      break;
+    }
+
+    debug('Assignments made', {
+      assignments: assignments.map(a => ({ task: a.task.id, person: a.assignedPerson.id })),
+      ...logContext,
+    });
+
+    // Update tracking maps for heuristics
+    _updateAssignmentTracking({ assignments, state });
+
+    _executeAssignments({
+      assignments,
+      state,
+      globalParams,
+      taskCompletionDates,
+      logContext,
+    });
+
+    hadAnyWork = true;
+  }
+
+  return hadAnyWork;
 }
 
 function _checkSimulationCompletion(tasks) {
-  return tasks.every(task => task.isDone());
+  return tasks.every(task => _isTaskDone(task));
 }
 
-function runSingleIteration({ tasks, personnel, globalParams, startDate }) {
+function _validateSimulationCompletion({ tasks, personnel, taskCompletionDates, maxWeeks }) {
+  const incompleteTasks = tasks.filter(task => !_isTaskDone(task) && !isContainerTask(task.type));
+
+  if (incompleteTasks.length === 0) {
+    return; // All tasks completed
+  }
+
+  const incompleteTaskDetails = incompleteTasks.map(task => {
+    const reasons = [];
+
+    // Check if task has unmet dependencies
+    if (task.dependsOnTasks && task.dependsOnTasks.length > 0) {
+      const incompleteDeps = task.dependsOnTasks.filter(depId => !taskCompletionDates[depId]);
+      if (incompleteDeps.length > 0) {
+        reasons.push(`blocked by incomplete dependencies: ${incompleteDeps.join(', ')}`);
+      }
+    }
+
+    // Check if no one has the required skills
+    if (task.requiredSkills && task.requiredSkills.length > 0) {
+      const missingSkills = task.requiredSkills.filter(reqSkill => {
+        return !personnel.some(person =>
+          person.skills && person.skills.some(skill =>
+            skill.name === reqSkill.name && _getLevelRank(skill.minLevel) >= _getLevelRank(reqSkill.minLevel)
+          )
+        );
+      });
+
+      if (missingSkills.length > 0) {
+        const skillDetails = missingSkills.map(s => `${s.name}:${s.minLevel}`).join(', ');
+        reasons.push(`no personnel with required skills: ${skillDetails}`);
+      }
+    }
+
+    if (reasons.length === 0) {
+      reasons.push('unknown reason');
+    }
+
+    return {
+      taskId: task.id,
+      taskTitle: task.title,
+      reasons,
+    };
+  });
+
+  const errorMessage = `Simulation could not complete after ${maxWeeks} weeks. Incomplete tasks:\n` +
+    incompleteTaskDetails.map(t => `  - ${t.taskId} (${t.taskTitle}): ${t.reasons.join('; ')}`).join('\n');
+
+  throw new Error(errorMessage);
+}
+
+function runSingleIteration({ tasks, personnel, globalParams, startDate, logContext = {} }) {
   const state = initializeSimulationState();
   const taskCompletionDates = {};
   const MAX_WEEKS = 1000;
 
-  // Initialize personnel hire weeks
+  // Initialize task durations
+  for (const task of tasks) {
+    if (task.remainingDuration === undefined) {
+      task.remainingDuration = task.mostProbableEstimateInRange || 0;
+      task.originalDuration = task.remainingDuration;
+    }
+    if (task.remainingReworkDuration === undefined) {
+      task.remainingReworkDuration = 0;
+    }
+  }
+
+  // Initialize personnel runtime properties
   for (const person of personnel) {
     if (!person.hireWeek && person.hired && person.onboarded) {
       person.hireWeek = 0;
     }
+
+    // Initialize onboarding counter for people who are hired but not onboarded
+    if (person.hired && !person.onboarded && person.onboardingWeeksRemaining === undefined) {
+      const rampUpTime = globalParams.timeToRampUpByLevel[person.level];
+      person.onboardingWeeksRemaining = rampUpTime;
+      person.hireWeek = 0;
+      debug('Person initialized for onboarding', {
+        personId: person.id,
+        onboardingWeeksRemaining: rampUpTime,
+        ...logContext,
+      });
+    }
+
+    // Convert startDate to hiringStartWeek for people not yet hired
+    if (person.startDate && !person.hired) {
+      const weekNumber = _calculateWeeksBetween(startDate, person.startDate);
+      person.hiringStartWeek = Math.max(1, weekNumber);
+      debug('Person startDate converted to hiringStartWeek', {
+        personId: person.id,
+        startDate: person.startDate.toISOString(),
+        hiringStartWeek: person.hiringStartWeek,
+        ...logContext,
+      });
+    }
   }
 
   while (state.currentWeek < MAX_WEEKS) {
-    state.currentWeek++; // AI: Should we have this before checking the simulation is complete?
+    state.currentWeek++;
+    logContext.week = state.currentWeek;
     const currentDate = _addWeeksToDate(startDate, state.currentWeek);
 
     // Process personnel lifecycle events (hiring, onboarding, turnover, vacations, sick leave)
-    _processPersonnelLifecycle({ personnel, state, globalParams, currentDate });
+    _processPersonnelLifecycle({ personnel, state, globalParams, currentDate, logContext });
 
     // Process weekly work assignments and execution
     const hadWork = _processWeeklyWorkAssignments({
@@ -280,13 +655,18 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate }) {
       globalParams,
       currentDate,
       taskCompletionDates,
+      logContext,
     });
 
     // Check if simulation is complete
     if (!hadWork && _checkSimulationCompletion(tasks)) {
+      info('Simulation complete', { reason: 'All tasks done', ...logContext });
       break;
     }
   }
+
+  // Validate all tasks completed - throws error if tasks remain incomplete
+  _validateSimulationCompletion({ tasks, personnel, taskCompletionDates, maxWeeks: MAX_WEEKS });
 
   return {
     completionWeek: state.currentWeek,
@@ -295,10 +675,13 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate }) {
   };
 }
 
-function runMultipleIterations({ tasks, personnel, numIterations, globalParams, startDate }) {
+function runMultipleIterations({ tasks, personnel, numIterations, globalParams, startDate, logContext = {} }) {
   const iterations = [];
 
+  info('Starting Monte Carlo simulation', { numIterations, ...logContext });
+
   for (let i = 0; i < numIterations; i++) {
+    logContext.iterationIndex = i;
     const tasksCopy = deepClone(tasks);
     const personnelCopy = deepClone(personnel);
 
@@ -307,7 +690,10 @@ function runMultipleIterations({ tasks, personnel, numIterations, globalParams, 
       personnel: personnelCopy,
       globalParams,
       startDate,
+      logContext,
     });
+
+    info('Iteration completed', { completionWeek: result.completionWeek, ...logContext });
 
     iterations.push(result);
   }
@@ -317,29 +703,85 @@ function runMultipleIterations({ tasks, personnel, numIterations, globalParams, 
   };
 }
 
-function _calculatePercentile(sortedValues, percentile) {
-  const index = (percentile / 100) * (sortedValues.length - 1);
+// Quickselect algorithm - O(n) average time to find k-th smallest element
+function _quickselect(arr, k, left = 0, right = arr.length - 1) {
+  while (left < right) {
+    const pivotIndex = _partition(arr, left, right);
+
+    if (pivotIndex === k) {
+      return arr[k];
+    } else if (pivotIndex < k) {
+      left = pivotIndex + 1;
+    } else {
+      right = pivotIndex - 1;
+    }
+  }
+  return arr[left];
+}
+
+function _partition(arr, left, right) {
+  // Use median of three for better pivot selection
+  const mid = Math.floor((left + right) / 2);
+  if (arr[mid] < arr[left]) {
+    [arr[left], arr[mid]] = [arr[mid], arr[left]];
+  }
+  if (arr[right] < arr[left]) {
+    [arr[left], arr[right]] = [arr[right], arr[left]];
+  }
+  if (arr[mid] < arr[right]) {
+    [arr[mid], arr[right]] = [arr[right], arr[mid]];
+  }
+
+  const pivot = arr[right];
+  let i = left;
+
+  for (let j = left; j < right; j++) {
+    if (arr[j] <= pivot) {
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      i++;
+    }
+  }
+
+  [arr[i], arr[right]] = [arr[right], arr[i]];
+  return i;
+}
+
+function _calculatePercentileQuickselect(arr, percentile) {
+  const n = arr.length;
+  const index = (percentile / 100) * (n - 1);
   const lower = Math.floor(index);
   const upper = Math.ceil(index);
   const weight = index - lower;
 
+  // Make a copy for quickselect (it mutates the array)
+  const copy = [...arr];
+
+  const lowerValue = _quickselect(copy, lower);
+
   if (lower === upper) {
-    return sortedValues[lower];
+    return lowerValue;
   }
 
-  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
+  // For upper value, partition was already done, find min in right partition
+  let upperValue = Infinity;
+  for (let i = lower + 1; i < n; i++) {
+    if (copy[i] < upperValue) {
+      upperValue = copy[i];
+    }
+  }
+
+  return lowerValue * (1 - weight) + upperValue * weight;
 }
 
-function calculatePercentiles(values) {
-  const sorted = [...values].sort((a, b) => a - b);
+function calculatePercentiles(values, percentilesOfInterest = [50, 75, 90, 95, 99]) {
+  // For large arrays, use quickselect for O(n) performance per percentile
+  const result = {};
 
-  return {
-    p50: _calculatePercentile(sorted, 50),
-    p75: _calculatePercentile(sorted, 75),
-    p90: _calculatePercentile(sorted, 90),
-    p95: _calculatePercentile(sorted, 95),
-    p99: _calculatePercentile(sorted, 99),
-  };
+  for (const percentile of percentilesOfInterest) {
+    result[`p${percentile}`] = _calculatePercentileQuickselect(values, percentile);
+  }
+
+  return result;
 }
 
 function shouldTaskSplit(splitRate, randomValue) {
@@ -351,9 +793,9 @@ function createSplitTask({ task, tasks }) {
   // Create new task with same properties
   const splitTask = new Task({ id: `${task.id}-split-${Date.now()}`, title: task.title, type: task.type });
 
-  // Copy properties
+  // Copy properties (spread to avoid mutating original arrays)
   splitTask.requiredSkills = [...(task.requiredSkills || [])];
-  splitTask.tasksBeingBlocked = task.tasksBeingBlocked || [];
+  splitTask.tasksBeingBlocked = [...(task.tasksBeingBlocked || [])];
 
   // Divide remaining duration
   const halfDuration = task.remainingDuration / 2;
@@ -449,14 +891,13 @@ function applyVacationToPersonnelCapacity({ personnel, currentDate }) {
   }
 }
 
-function shouldPersonGetSick(sickRate, randomValue) {
-  // AI: random value should be rolled here
-  return randomValue < sickRate;
+function shouldPersonGetSick(sickRate) {
+  const rate = sickRate ?? DEFAULT_WEEKLY_SICK_CHANCE;
+  return Math.random() < rate;
 }
 
-function generateSickLeaveDuration(randomValue) {
-  // AI, random value should be generated here, not received
-  return Math.floor(randomValue * 5) + 1;
+function generateSickLeaveDuration() {
+  return Math.floor(Math.random() * 5) + 1;
 }
 
 function isPersonHired({ person }) {
@@ -499,18 +940,20 @@ function isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks }) {
   return currentWeek >= person.onboardingStartWeek + rampUpTimeInWeeks;
 }
 
-function applyOnboardingCapacityReduction({ personnel, currentWeek, rampUpTimeInWeeks }) {
+function applyOnboardingCapacityReduction({ personnel }) {
   for (const person of personnel) {
-    // Only reduce capacity if person is onboarding (not fully onboarded yet)
-    if (!isOnboardingComplete({ person, currentWeek, rampUpTimeInWeeks }) && person.onboardingStartWeek !== undefined) {
-      person.availableCapacity = person.availableCapacity * 0.5;
+    // Set capacity to 0 if person is onboarding (not fully onboarded yet)
+    // People onboarding should not work on tasks - they are in training/learning mode
+    const isOnboarding = person.onboardingWeeksRemaining !== undefined && person.onboardingWeeksRemaining > 0;
+    if (isOnboarding) {
+      person.availableCapacity = 0;
     }
   }
 }
 
-function shouldPersonQuit(quitRate, randomValue) {
-  // AI, randomValue should be generated here
-  return randomValue < quitRate;
+function shouldPersonQuit(quitRate) {
+  const rate = quitRate ?? DEFAULT_WEEKLY_QUIT_CHANCE;
+  return Math.random() < rate;
 }
 
 function markPersonAsDeparted({ person }) {
@@ -522,7 +965,7 @@ function filterActivePersonnel({ personnel }) {
   return personnel.filter(person => !person.hasDeparted);
 }
 
-function createReplacement({ person, currentWeek, personnel }) {
+function createReplacement({ person, currentWeek }) {
   const replacement = new Person({
     id: `${person.id}-replacement-${Date.now()}`,
     name: `${person.name} Replacement`,
@@ -537,13 +980,7 @@ function createReplacement({ person, currentWeek, personnel }) {
   // Set hiring start week
   replacement.hiringStartWeek = currentWeek + 1;
 
-  // Add to personnel array if provided
-  if (personnel) {
-    personnel.push(replacement);
-  }
-
-  // AI, this function should behave in 2 different ways, personnel should probably not be an arg
-  return personnel ? { replacement, personnel } : replacement;
+  return replacement;
 }
 
 function startOnboarding({ person, currentWeek, hiringTimeInWeeks }) {
@@ -558,60 +995,68 @@ function completeOnboarding({ person, currentWeek, rampUpTimeInWeeks }) {
   }
 }
 
-function hasStartDateConstraint({ task }) { // AI, function is too small and probably should be a boolean (for readability), not a func
-  return task.onlyStartableAt !== undefined;
-}
-
-function getStartDateConstraint({ task }) { // AI, function is too small and probably should be a var (for readability), not a func
-  return task.onlyStartableAt;
-}
-
 function isTaskStartableByDate({ task, currentDate }) {
-  if (!hasStartDateConstraint({ task })) {
+  if (task.onlyStartableAt === undefined) {
     return true;
   }
-
-  const constraint = getStartDateConstraint({ task });
-  return currentDate >= constraint;
+  return currentDate >= task.onlyStartableAt;
 }
 
 function filterTasksByStartDate({ tasks, currentDate }) {
   return tasks.filter(task => isTaskStartableByDate({ task, currentDate }));
 }
 
-// AI: This could be O(n), instead of O(n * logn), if func({ iterations, percentileValue })
-function findIterationForPercentile({ iterations, percentile }) {
-  // Sort iterations by completion week
-  const sorted = [...iterations].sort((a, b) => a.completionWeek - b.completionWeek);
+// Quickselect variant for iteration objects (by completionWeek)
+function _quickselectIteration(arr, k, left = 0, right = arr.length - 1) {
+  while (left < right) {
+    const pivotIndex = _partitionIteration(arr, left, right);
 
-  // AI, I guess we could have an auxiliary func to reuse the percentile computation logic
-  // Calculate percentile index using same algorithm as calculatePercentiles
-  const index = (percentile / 100) * (sorted.length - 1);
-  const lower = Math.floor(index);
-  const upper = Math.ceil(index);
-  const weight = index - lower;
-
-  // For simplicity, return the upper index iteration
-  // (linear interpolation doesn't make sense for discrete iterations)
-  if (weight > 0.5) {
-    return sorted[upper];
+    if (pivotIndex === k) {
+      return arr[k];
+    } else if (pivotIndex < k) {
+      left = pivotIndex + 1;
+    } else {
+      right = pivotIndex - 1;
+    }
   }
-  return sorted[lower];
+  return arr[left];
+}
+
+function _partitionIteration(arr, left, right) {
+  const pivot = arr[right].completionWeek;
+  let i = left;
+
+  for (let j = left; j < right; j++) {
+    if (arr[j].completionWeek <= pivot) {
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      i++;
+    }
+  }
+
+  [arr[i], arr[right]] = [arr[right], arr[i]];
+  return i;
+}
+
+function findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek }) {
+  // Find the first iteration that matches the target completion week
+  const match = iterations.find(iter => iter.completionWeek === targetCompletionWeek);
+  if (match) return match;
+
+  // Fallback: find the closest iteration if no exact match
+  return iterations.reduce((closest, iter) => {
+    const currentDiff = Math.abs(iter.completionWeek - targetCompletionWeek);
+    const closestDiff = Math.abs(closest.completionWeek - targetCompletionWeek);
+    return currentDiff < closestDiff ? iter : closest;
+  }, iterations[0]);
 }
 
 function extractTaskTimeline({ iteration }) {
   return iteration.taskCompletionDates;
 }
 
-function extractPercentilesTimeline({ iterations, percentiles }) {
-  return percentiles.map(percentile => {
-    const iteration = findIterationForPercentile({ iterations, percentile });
-    const timeline = extractTaskTimeline({ iteration });
-    return {
-      percentile,
-      timeline,
-    };
-  });
+function extractTimelineForTargetCompletionWeek({ iterations, targetCompletionWeek }) {
+  const iteration = findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek });
+  return extractTaskTimeline({ iteration });
 }
 
 function _formatGanttDate(date) {
@@ -693,6 +1138,19 @@ function _generateGanttChartMermaid({ taskStartDates, taskCompletionDates, tasks
     }
   }
 
+  // Section: Sick Leaves
+  code += '    section Sick Leaves\n';
+  for (const person of personnel) {
+    if (!person.sickLeaves || person.sickLeaves.length === 0) continue;
+
+    for (let i = 0; i < person.sickLeaves.length; i++) {
+      const sickLeave = person.sickLeaves[i];
+      const fromStr = _formatGanttDate(_addWeeksToDate(startDate, sickLeave.startWeek));
+      const toStr = _formatGanttDate(_addWeeksToDate(startDate, sickLeave.endWeek));
+      code += `    ${person.name} sick :done, sick-${person.id}-${i}, ${fromStr}, ${toStr}\n`;
+    }
+  }
+
   return code;
 }
 
@@ -714,57 +1172,68 @@ function generateGanttChartCode({ iteration, tasks, personnel, title, startDate 
 function sortTasksByPriority(tasks) {
   return [...tasks].sort((a, b) => {
     // First priority: finish what we started (tasks with more work done)
-    const aInProgress = a.mostProbableEstimateInRange > 0 && a.remainingDuration < a.mostProbableEstimateInRange; // AI, we should have a property Task.originalDuration to compare instead of mostProbableEstimateInRange, since the originalDuration is a probably between the fibonacciEstimate and mostProbableEstimateInRange
-    const bInProgress = b.mostProbableEstimateInRange > 0 && b.remainingDuration < b.mostProbableEstimateInRange;
+    const aOriginal = a.originalDuration || a.mostProbableEstimateInRange || 0;
+    const bOriginal = b.originalDuration || b.mostProbableEstimateInRange || 0;
+    const aInProgress = aOriginal > 0 && a.remainingDuration < aOriginal;
+    const bInProgress = bOriginal > 0 && b.remainingDuration < bOriginal;
 
     if (aInProgress && !bInProgress) return -1;
     if (!aInProgress && bInProgress) return 1;
 
     // Second priority: tasks that block the most other tasks (greedy)
-    const blocksA = a.totalNumOfBlocks || 0; // AI, we have a limitation here: totalNumOfBlocks is the original number before tasks starts being done. We should have an auxiliar Tasks.remainingNumOfBlocks, which disconsider the tasks already done. We should them use remainingNumOfBlocks here instead of totalNumOfBlocks
-    const blocksB = b.totalNumOfBlocks || 0;
+    const blocksA = a.remainingNumOfBlocks ?? a.totalNumOfBlocks ?? 0;
+    const blocksB = b.remainingNumOfBlocks ?? b.totalNumOfBlocks ?? 0;
     return blocksB - blocksA;
   });
 }
 
-// AI, this function is useful, but I think it could be done once, before simulations even start, right?
 function _sortPersonnelBySeniority(personnel) {
-  const LEVEL_RANK = {
-    specialist: 5,
-    senior: 4,
-    mid: 3,
-    junior: 2,
-    intern: 1,
-  };
-
   return [...personnel].sort((a, b) => {
     return (LEVEL_RANK[b.level] || 0) - (LEVEL_RANK[a.level] || 0);
   });
 }
 
-function assignTasksToPersonnel({ tasks, personnel }) {
-  // TODO: Improve heuristic to consider workload balancing, knowledge silo, and task switching penalties
-
+function assignTasksToPersonnel({ tasks, personnel, assignmentCounts, skillWorkHistory, logContext = {} }) {
   const assignments = [];
   const assignedTasks = new Set();
   const assignedPersonnel = new Set();
 
   const prioritizedTasks = sortTasksByPriority(tasks);
-  const sortedPersonnel = _sortPersonnelBySeniority(personnel);
+  debug('Task priority order', { taskIds: prioritizedTasks.map(t => t.id), ...logContext });
 
   for (const task of prioritizedTasks) {
     if (assignedTasks.has(task.id)) continue;
 
-    for (const person of sortedPersonnel) {
-      if (assignedPersonnel.has(person.id)) continue;
-      if (person.availableCapacity <= 0) continue;
-      if (!isPersonQualifiedForTask({ person, task })) continue;
+    // Score all qualified candidates
+    const candidatesAndTheirAssignmentScore = personnel
+      .filter(p => !assignedPersonnel.has(p.id))
+      .filter(p => p.availableCapacity > 0)
+      .filter(p => isPersonQualifiedForTask({ person: p, task }))
+      .map(person => ({
+        person,
+        score: _scoreCandidateForTask({
+          person,
+          task,
+          assignmentCounts,
+          skillWorkHistory,
+        }),
+      }));
 
-      assignments.push({ task, assignedPerson: person });
-      assignedTasks.add(task.id);
-      assignedPersonnel.add(person.id);
-      break;
-    }
+    if (candidatesAndTheirAssignmentScore.length === 0) continue;
+
+    const sortedCandidates = candidatesAndTheirAssignmentScore.sort((a, b) => b.score - a.score);
+    const bestCandidate = sortedCandidates[0].person;
+
+    debug('Candidate scores for task', {
+      taskId: task.id,
+      candidates: sortedCandidates.map(c => ({ personId: c.person.id, score: c.score })),
+      selectedPersonId: bestCandidate.id,
+      ...logContext,
+    });
+
+    assignments.push({ task, assignedPerson: bestCandidate });
+    assignedTasks.add(task.id);
+    assignedPersonnel.add(bestCandidate.id);
   }
 
   return assignments;
@@ -803,7 +1272,7 @@ function generateChangeRequests({ tasks, splitRate }) {
       title: `Change Request: ${i}`,
       type: TASK_TYPE.USER_STORY,
     });
-    crTask.fibonacciEstimate = Math.ceil(avgEstimate); // AI, this should be the next fibonacci, greater than mostProbableEstimateInRange
+    crTask.fibonacciEstimate = getNextFibonacci(avgEstimate);
     crTask.mostProbableEstimateInRange = avgEstimate;
     crTask.parents = [changeRequestMilestone.id];
 
@@ -837,8 +1306,20 @@ function _addWeeksToDate(date, weeks) {
   return result;
 }
 
-function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
-  const vacationCalendar = new Map(); // AI, this probably should be global at the simulation level
+function _addPersonToVacationCalendar(vacationCalendar, week, personId) {
+  if (!vacationCalendar.has(week)) {
+    vacationCalendar.set(week, new Set());
+  }
+  vacationCalendar.get(week).add(personId);
+}
+
+function _isPersonOnVacationInWeek(vacationCalendar, week, personId) {
+  const peopleOnVacation = vacationCalendar.get(week);
+  return peopleOnVacation && peopleOnVacation.has(personId);
+}
+
+function _buildVacationCalendar({ personnel, startDate }) {
+  const vacationCalendar = new Map();
 
   for (const person of personnel) {
     if (!person.vacationsAt) continue;
@@ -848,12 +1329,70 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
       const toWeek = _calculateWeeksBetween(startDate, vacation.to);
 
       for (let week = fromWeek; week <= toWeek; week++) {
-        // AI, we have a limitation here: if 2+ people have vacations at the same time, this map cant represent it
-        vacationCalendar.set(week, person.id);
+        _addPersonToVacationCalendar(vacationCalendar, week, person.id);
       }
     }
   }
 
+  return vacationCalendar;
+}
+
+function _scheduleVacationForPerson({ person, currentWeek, startDate, vacationCalendar }) {
+  const vacationWeeks = VACATION_WEEKS_PER_YEAR;
+
+  if (!person.vacationsAt) {
+    person.vacationsAt = [];
+  }
+
+  // Find a slot that doesn't conflict with existing vacations
+  let candidateStartWeek = currentWeek + 1;
+
+  while (true) {
+    let conflictFound = false;
+
+    for (let week = candidateStartWeek; week < candidateStartWeek + vacationWeeks; week++) {
+      if (_isPersonOnVacationInWeek(vacationCalendar, week, person.id)) {
+        conflictFound = true;
+        candidateStartWeek = week + 1;
+        break;
+      }
+    }
+
+    if (!conflictFound) {
+      const fromDate = _addWeeksToDate(startDate, candidateStartWeek);
+      const toDate = _addWeeksToDate(startDate, candidateStartWeek + vacationWeeks - 1);
+
+      person.vacationsAt.push({ from: fromDate, to: toDate });
+
+      // Update the calendar with the newly scheduled vacation
+      for (let week = candidateStartWeek; week < candidateStartWeek + vacationWeeks; week++) {
+        _addPersonToVacationCalendar(vacationCalendar, week, person.id);
+      }
+
+      break;
+    }
+  }
+}
+
+function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
+  // Vacation calendar: Map<week, Set<personId>>
+  const vacationCalendar = new Map();
+
+  // Populate calendar with existing vacations
+  for (const person of personnel) {
+    if (!person.vacationsAt) continue;
+
+    for (const vacation of person.vacationsAt) {
+      const fromWeek = _calculateWeeksBetween(startDate, vacation.from);
+      const toWeek = _calculateWeeksBetween(startDate, vacation.to);
+
+      for (let week = fromWeek; week <= toWeek; week++) {
+        _addPersonToVacationCalendar(vacationCalendar, week, person.id);
+      }
+    }
+  }
+
+  // Schedule automatic vacations for each person
   for (const person of personnel) {
     if (!person.hireWeek) continue;
 
@@ -872,7 +1411,6 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
       return sum + diffWeeks;
     }, 0);
 
-    // AI, we need to fix here: the initial assigned weeks does not count on the expectedVacationWeeks. During people vacations, we just don't increase their workedWeeks
     const missingWeeks = expectedVacationWeeks - assignedWeeks;
 
     if (missingWeeks > 0) {
@@ -881,8 +1419,9 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
       while (true) {
         let conflictFound = false;
 
+        // Check if this person already has vacation scheduled in any of the candidate weeks
         for (let week = candidateStartWeek; week < candidateStartWeek + missingWeeks; week++) {
-          if (vacationCalendar.has(week)) {
+          if (_isPersonOnVacationInWeek(vacationCalendar, week, person.id)) {
             conflictFound = true;
             candidateStartWeek = week + 1;
             break;
@@ -890,14 +1429,13 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
         }
 
         if (!conflictFound) {
-          // AI, this wont work, since this new date can also have conflict. We need a proper auxiliary findWeekForVacation({ vacationCalendar, numOfVacationWeeks }) -> weekNumber
           const fromDate = _addWeeksToDate(startDate, candidateStartWeek);
           const toDate = _addWeeksToDate(startDate, candidateStartWeek + missingWeeks - 1);
 
           person.vacationsAt.push({ from: fromDate, to: toDate });
 
           for (let week = candidateStartWeek; week < candidateStartWeek + missingWeeks; week++) {
-            vacationCalendar.set(week, person.id);
+            _addPersonToVacationCalendar(vacationCalendar, week, person.id);
           }
 
           break;
@@ -913,93 +1451,12 @@ function isPersonAvailableByDate({ person, currentDate, globalParams }) {
   }
 
   const hiringTime = globalParams.timeToHireByLevel[person.level];
-  const rampUpTime = globalParams.timeToRampUpByLevel[person.level]; // AI, is this considered onboard or is a separated concept?
+  const rampUpTime = globalParams.timeToRampUpByLevel[person.level];
   const totalWeeksNeeded = hiringTime + rampUpTime;
 
   const availableDate = _addWeeksToDate(person.startDate, totalWeeksNeeded);
 
   return currentDate >= availableDate;
-}
-
-// TODO: Implement this helper function
-function findBestPersonnelForTask(_task, _personnel) {
-  return null;
-}
-
-// 1 sprint = a list of executed tasks
-function planSprint(tasks, personnel) {
-  let sprint = [];
-
-  tasks.filter(
-    task => task.tasksBeingBlocked.every(d => d.remainingDuration)
-  ).forEach(task => {
-    let assignee = findBestPersonnelForTask(task, personnel);
-    if (assignee) {
-      sprint.push({ task: task.id, assignee: assignee.name, remainingDuration: task.duration });
-      task.duration -= 2; // Assuming 2-week sprints
-    }
-  });
-
-  return sprint;
-}
-
-function updateTasksDuration(tasks, _executedSprint) {
-  tasks.forEach(task => {
-    if (task.duration > 0) {
-      task.completed = false;
-    } else {
-      task.completed = true;
-    }
-  });
-}
-
-function _calculateCompletionDate(sprints, startDate) {
-  const totalWeeks = sprints * 2;
-
-  let completionDate = new Date(startDate);
-  completionDate.setDate(completionDate.getDate() + totalWeeks * 7);
-
-  return completionDate;
-}
-
-// 1 simulation is a sequence of sprints till project completion
-function runMonteCarloSimulation(tasks, personnel, globalParams) {
-  const simulations = [];
-  const numSimulations = globalParams.numOfMonteCarloIterations;
-
-  for (let i = 0; i < numSimulations; i++) {
-    let sprintResults = [];
-    let remainingTasks = deepClone(tasks);
-    let availablePersonnel = deepClone(personnel);
-    let allTasksCompleted = false;
-
-    // TODO: Monte Carlo steps
-    // 1. Simple simulation: all hired/onboarded, no rework, no split rate, no vacation, no sickness, no turnover. Only handle: different skill level requirements and velocity
-    // 2. Handle split rate
-    // 3. Handle rework
-    // 4. Handle vacation
-    // 5. Handle sick rate
-    // 6. Handle hiring + onboard
-    // 7. Handle turnover rate + re-hiring/onbording
-    // 8. Handle onlyStartableAt
-
-    while (!allTasksCompleted) {
-      let currentSprint = planSprint(remainingTasks, availablePersonnel);
-      sprintResults.push(currentSprint);
-
-      updateTasksDuration(remainingTasks, currentSprint);
-
-      allTasksCompleted = remainingTasks.every(task => task.duration <= 0);
-    }
-
-    simulations.push({
-      startDate: globalParams.startDate,
-      completionDate: _calculateCompletionDate(sprintResults, globalParams.startDate),
-      sprints: sprintResults,
-    });
-  }
-
-  return simulations;
 }
 
 export {
@@ -1041,14 +1498,10 @@ export {
   createReplacement,
   startOnboarding,
   completeOnboarding,
-  hasStartDateConstraint,
-  getStartDateConstraint,
   isTaskStartableByDate,
   filterTasksByStartDate,
-  findIterationForPercentile,
+  findClosestIterationForTargetCompletionWeek,
   extractTaskTimeline,
-  extractPercentilesTimeline,
+  extractTimelineForTargetCompletionWeek,
   generateGanttChartCode,
-  _calculateCompletionDate,
-  runMonteCarloSimulation,
 };

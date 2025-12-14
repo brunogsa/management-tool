@@ -6,6 +6,15 @@ const LEVEL = {
   SPECIALIST: 'specialist',
 };
 
+// Pre-computed level ranks for skill comparison (higher is more senior)
+const LEVEL_RANK = {
+  [LEVEL.INTERN]: 1,
+  [LEVEL.JUNIOR]: 2,
+  [LEVEL.MID]: 3,
+  [LEVEL.SENIOR]: 4,
+  [LEVEL.SPECIALIST]: 5,
+};
+
 const FIBONACCI = {
   _0: 0,
   _0_5: 0.5,
@@ -19,6 +28,17 @@ const FIBONACCI = {
   _34: 34,
   _55: 55,
   _89: 89,
+};
+
+const FIBONACCI_SEQUENCE = [0, 0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
+
+const getNextFibonacci = (value) => {
+  for (const fib of FIBONACCI_SEQUENCE) {
+    if (fib >= value) {
+      return fib;
+    }
+  }
+  return FIBONACCI._89;
 };
 
 const TIME_UNITS = {
@@ -85,11 +105,13 @@ class Task {
     // Undefined | Number
     this.totalRealisticEstimate = undefined;
     this.totalNumOfBlocks = undefined;
+    this.remainingNumOfBlocks = undefined;
     this.remainingDuration = undefined;
     this.remainingReworkDuration = undefined;
+    this.originalDuration = undefined;
 
     // Undefined | PersonId
-    this.assignee = undefined; // AI, not sure this is useful
+    this.assignee = undefined;
   }
 
   accountWork(spentDuration, reworkRateToConsider) {
@@ -184,6 +206,33 @@ class Person {
     this.availableCapacity = undefined;
     this.remainingReplacementDuration = undefined;
     this.hireWeek = undefined;
+    this.sickUntilWeek = undefined;
+  }
+
+  isSick(currentWeek) {
+    if (!this.sickUntilWeek) {
+      return false;
+    }
+    return currentWeek <= this.sickUntilWeek;
+  }
+
+  isOnVacation(currentDate) {
+    if (!this.vacationsAt || this.vacationsAt.length === 0) {
+      return false;
+    }
+
+    const dateToCheck = currentDate instanceof Date ? currentDate : new Date(currentDate);
+
+    for (const vacation of this.vacationsAt) {
+      const fromDate = vacation.from instanceof Date ? vacation.from : new Date(vacation.from);
+      const toDate = vacation.to instanceof Date ? vacation.to : new Date(vacation.to);
+
+      if (dateToCheck >= fromDate && dateToCheck <= toDate) {
+        return true;
+      }
+    }
+
+    return false;
   }
 };
 
@@ -228,11 +277,13 @@ const DEFAULT_NUM_OF_MONTE_CARLO_SIMULATIONS = 1000000;
 
 export {
   LEVEL,
+  LEVEL_RANK,
   FIBONACCI,
   TIME_UNITS,
 
   TASK_TYPE,
   isContainerTask,
+  getNextFibonacci,
 
   Task,
   Skill,

@@ -165,8 +165,7 @@ describe('Task', () => {
         expect(task.remainingDuration).toBe(0);
       });
 
-      // TODO: Should be: it('should add (spentDuration * reworkRateToConsider) to remainingReworkDuration'
-      it('should add (remainingDuration * reworkRateToConsider) to remainingReworkDuration', () => {
+      it('should add (spentDuration * reworkRateToConsider) to remainingReworkDuration', () => {
         const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
         task.remainingDuration = 10;
         task.remainingReworkDuration = 0;
@@ -194,8 +193,7 @@ describe('Task', () => {
         expect(task.remainingReworkDuration).toBe(0);
       });
 
-      // TODO: Should be: it('should not consume remainingReworkDuration with leftover spentDuration'
-      it('should consume remaining reworkDuration with leftover spentDuration', () => {
+      it('should not consume remainingReworkDuration with leftover spentDuration', () => {
         const task = new Task({ id: 't1', title: 'Test', type: TASK_TYPE.USER_STORY });
         task.remainingDuration = 3;
         task.remainingReworkDuration = 4;

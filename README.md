@@ -175,22 +175,16 @@ The Monte Carlo simulation is fully implemented with:
 - ✅ Personnel startDate support (for modeling new hires during project)
 - ✅ Enhanced Gantt charts showing estimates, rework, blocking counts, and vacations
 
-## TODOs
+## Task Assignment Heuristics
 
-### Task Assignment Heuristic Improvements
+The simulation uses a multi-factor scoring heuristic in `assignTasksToPersonnel()` to optimally match tasks to personnel. Each candidate is scored based on the following weighted factors (defined in `ASSIGNMENT_HEURISTIC_WEIGHTS`):
 
-The current simulation uses a simple greedy heuristic in `assignTasksToPersonnel()` that:
-1. **First priority**: Finishes in-progress tasks (tasks where work has already begun)
-2. **Second priority**: Assigns most senior available person to highest-priority task (by blocking count)
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| **Skill Affinity** | 35% | Prefers exact skill matches over overqualified personnel. Penalizes people with many extra skills. |
+| **Workload Balancing** | 25% | Distributes work evenly; prefers people with fewer total assignments. |
+| **Continuity** | 20% | Keeps the same person working on a task they've already started. |
+| **Seniority** | 10% | Higher seniority gets a slight boost. |
+| **Knowledge Spread** | 10% | Spreads knowledge across the team; prefers assigning people who haven't worked on a skill area yet. |
 
-This works well but could be enhanced with:
-
-- **Skill affinity scoring**: Prefer people with exact skill matches or experience in similar tasks
-- **Workload balancing**: Avoid overloading the same person repeatedly; distribute work more evenly
-- **Learning curve modeling**: People get faster on repeated similar tasks (velocity increases)
-- **Task switching penalties**: Account for context switching costs when jumping between different task types
-- **Parallel work support**: Allow configurable tasks that multiple people can work on simultaneously
-
-See `assignTasksToPersonnel()` in `src/utils/monte-carlo.js` (lines ~511-546) for current implementation.
-
-**Why the simple heuristic is OK for now:** The greedy approach provides a reasonable baseline and ensures all personnel are utilized efficiently. The "finish what we started" rule reduces WIP and is more realistic than starting everything in parallel. More sophisticated heuristics require additional data (historical velocity, task similarity metrics) that may not always be available.
+The heuristic scores all qualified candidates for each task and assigns the highest-scoring person. This approach balances efficiency (matching skills, reducing context switching) with team health (workload distribution, knowledge sharing).

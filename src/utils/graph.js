@@ -1,7 +1,18 @@
 import { TASK_TYPE, isContainerTask } from '../models.js';
 
+// ISO 8601 date pattern for reviving dates from JSON
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/;
+
+const _dateReviver = (key, value) => {
+  if (typeof value === 'string' && ISO_DATE_PATTERN.test(value)) {
+    return new Date(value);
+  }
+  return value;
+};
+
 const deepClone = (obj) => JSON.parse(
   JSON.stringify(obj),
+  _dateReviver
 );
 
 const _setToArray = (set) => ([...set]);
@@ -224,6 +235,14 @@ function populateContainerEstimates(tasks, taskMap) {
   });
 }
 
+function attachBlockingCounts(tasks) {
+  for (const task of tasks) {
+    task.totalNumOfBlocks = (task.allTasksBeingBlocked && Array.isArray(task.allTasksBeingBlocked))
+      ? task.allTasksBeingBlocked.length
+      : 0;
+  }
+}
+
 export {
   deepClone,
   _setToArray,
@@ -235,4 +254,5 @@ export {
   attachAllDescendantsFromParentProps,
   attachBlockedTasksFromDependsOnProps,
   populateContainerEstimates,
+  attachBlockingCounts,
 };

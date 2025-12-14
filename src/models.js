@@ -6,6 +6,15 @@ const LEVEL = {
   SPECIALIST: 'specialist',
 };
 
+// Pre-computed level ranks for skill comparison (higher is more senior)
+const LEVEL_RANK = {
+  [LEVEL.INTERN]: 1,
+  [LEVEL.JUNIOR]: 2,
+  [LEVEL.MID]: 3,
+  [LEVEL.SENIOR]: 4,
+  [LEVEL.SPECIALIST]: 5,
+};
+
 const FIBONACCI = {
   _0: 0,
   _0_5: 0.5,
@@ -19,6 +28,17 @@ const FIBONACCI = {
   _34: 34,
   _55: 55,
   _89: 89,
+};
+
+const FIBONACCI_SEQUENCE = [0, 0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
+
+const getNextFibonacci = (value) => {
+  for (const fib of FIBONACCI_SEQUENCE) {
+    if (fib >= value) {
+      return fib;
+    }
+  }
+  return FIBONACCI._89;
 };
 
 const TIME_UNITS = {
@@ -85,14 +105,19 @@ class Task {
     // Undefined | Number
     this.totalRealisticEstimate = undefined;
     this.totalNumOfBlocks = undefined;
+    this.remainingNumOfBlocks = undefined;
     this.remainingDuration = undefined;
     this.remainingReworkDuration = undefined;
+    this.originalDuration = undefined;
 
     // Undefined | PersonId
     this.assignee = undefined;
   }
 
   accountWork(spentDuration, reworkRateToConsider) {
+    if (typeof reworkRateToConsider !== 'number' || isNaN(reworkRateToConsider)) {
+      throw new Error('reworkRateToConsider must be a valid number');
+    }
     if (this.remainingDuration === undefined) {
       this.remainingDuration = 0;
     }
@@ -103,15 +128,19 @@ class Task {
     if (this.remainingDuration >= spentDuration) {
       this.remainingDuration -= spentDuration;
       this.remainingReworkDuration += spentDuration *  reworkRateToConsider;
+      this.remainingReworkDuration = Math.round(this.remainingReworkDuration * 1e10) / 1e10;
 
       return;
     }
 
-    const spentAux = this.remainingDuration;
+    const spentOnOriginal = this.remainingDuration;
     this.remainingDuration = 0;
-    this.remainingReworkDuration += spentAux *  reworkRateToConsider;
+    this.remainingReworkDuration += spentOnOriginal *  reworkRateToConsider;
 
-    // Then, consume the remaining from the rework itself
+    // Then, consume the remaining from the rework itself (WITHOUT generating more rework)
+    const spentOnRework = spentDuration - spentOnOriginal;
+    this.remainingReworkDuration = Math.max(0, this.remainingReworkDuration - spentOnRework);
+    this.remainingReworkDuration = Math.round(this.remainingReworkDuration * 1e10) / 1e10;
   }
 
   isDone() {
@@ -149,7 +178,7 @@ class Vacation {
 }
 
 class Person {
-  constructor({ id, name, level, isHired, isOnboarded }) {
+  constructor({ id, name, level, isHired, isOnboarded, startDate }) {
     if (!Object.values(LEVEL).includes(level)) {
       throw new Error(`Unknown level "${level}". Must be one of: ${JSON.stringify(LEVEL)}`);
     }
@@ -167,12 +196,43 @@ class Person {
     // Vacation[]
     this.vacationsAt = [];
 
+    // Optional start date (when person becomes available)
+    this.startDate = startDate ? new Date(startDate) : undefined;
+
     // Props agreggated during runtime
 
     // Undefined | Number
     this.numOfAssignedTasks = undefined;
     this.availableCapacity = undefined;
     this.remainingReplacementDuration = undefined;
+    this.hireWeek = undefined;
+    this.sickUntilWeek = undefined;
+  }
+
+  isSick(currentWeek) {
+    if (!this.sickUntilWeek) {
+      return false;
+    }
+    return currentWeek <= this.sickUntilWeek;
+  }
+
+  isOnVacation(currentDate) {
+    if (!this.vacationsAt || this.vacationsAt.length === 0) {
+      return false;
+    }
+
+    const dateToCheck = currentDate instanceof Date ? currentDate : new Date(currentDate);
+
+    for (const vacation of this.vacationsAt) {
+      const fromDate = vacation.from instanceof Date ? vacation.from : new Date(vacation.from);
+      const toDate = vacation.to instanceof Date ? vacation.to : new Date(vacation.to);
+
+      if (dateToCheck >= fromDate && dateToCheck <= toDate) {
+        return true;
+      }
+    }
+
+    return false;
   }
 };
 
@@ -217,11 +277,13 @@ const DEFAULT_NUM_OF_MONTE_CARLO_SIMULATIONS = 1000000;
 
 export {
   LEVEL,
+  LEVEL_RANK,
   FIBONACCI,
   TIME_UNITS,
 
   TASK_TYPE,
   isContainerTask,
+  getNextFibonacci,
 
   Task,
   Skill,

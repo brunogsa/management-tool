@@ -1,56 +1,145 @@
 import inputValidator from '../utils/input-validator.js';
 import {
-  deepClone,
   getTaskMap,
   attachAllDescendantsFromParentProps,
   attachBlockedTasksFromDependsOnProps,
   populateContainerEstimates,
+  attachBlockingCounts,
+  deepClone,
 } from '../utils/graph.js';
-import { runMonteCarloSimulation } from '../utils/monte-carlo.js';
-import { generateGanttChart } from '../utils/mermaid-code-generator.js';
+import {
+  runMultipleIterations,
+  runMultipleIterationsParallel,
+  runSingleIteration,
+  calculatePercentiles,
+  findClosestIterationForTargetCompletionWeek,
+  generateGanttChartCode,
+  generateChangeRequests,
+  injectChangeRequestsIntoTaskList,
+} from '../utils/monte-carlo.js';
 
 
-function monteCarloUseCase(inputData) {
+// Normalize string dates to Date objects for consistent handling throughout the simulation
+function _normalizeDateFields({ tasks, personnel }) {
+  for (const task of tasks) {
+    if (task.onlyStartableAt && !(task.onlyStartableAt instanceof Date)) {
+      task.onlyStartableAt = new Date(task.onlyStartableAt);
+    }
+  }
+
+  for (const person of personnel) {
+    if (person.startDate && !(person.startDate instanceof Date)) {
+      person.startDate = new Date(person.startDate);
+    }
+
+    if (person.vacationsAt) {
+      for (const vacation of person.vacationsAt) {
+        if (vacation.from && !(vacation.from instanceof Date)) {
+          vacation.from = new Date(vacation.from);
+        }
+        if (vacation.to && !(vacation.to instanceof Date)) {
+          vacation.to = new Date(vacation.to);
+        }
+      }
+    }
+  }
+}
+
+async function monteCarloUseCase(inputData, { useParallel = true, numWorkers } = {}) {
   inputValidator(inputData);
 
-  const data = deepClone(inputData);
-  data.taskMap = getTaskMap(data.tasks);
+  const { globalParams, tasks, personnel } = inputData;
 
-  attachAllDescendantsFromParentProps(data.tasks, data.taskMap);
-  attachBlockedTasksFromDependsOnProps(data.tasks, data.taskMap);
-  populateContainerEstimates(data.tasks, data.taskMap);
+  // Normalize dates immediately after validation
+  _normalizeDateFields({ tasks, personnel });
 
-  const listOfSimulations = runMonteCarloSimulation(
-    inputData.tasks,
-    inputData.personnel,
-    inputData.globalParams,
-  );
+  const taskMap = getTaskMap(tasks);
 
-  // TODO: Check the percentiles of the durations (sprints)
-  const duration50th = 20;
-  const duration75th = 25;
-  const duration90th = 30;
-  const duration95th = 35;
-  const duration99th = 40;
+  // Populate graph
+  attachAllDescendantsFromParentProps(tasks, taskMap);
+  attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+  populateContainerEstimates(tasks, taskMap);
+  attachBlockingCounts(tasks);
 
-  const exemplaryFor50th = listOfSimulations.find((simulation) => simulation.sprints.length === duration50th);
-  const exemplaryFor75th = listOfSimulations.find((simulation) => simulation.sprints.length === duration75th);
-  const exemplaryFor90th = listOfSimulations.find((simulation) => simulation.sprints.length === duration90th);
-  const exemplaryFor95th = listOfSimulations.find((simulation) => simulation.sprints.length === duration95th);
-  const exemplaryFor99th = listOfSimulations.find((simulation) => simulation.sprints.length === duration99th);
+  // Generate change requests
+  const { changeRequestMilestone, changeRequestTasks } = generateChangeRequests({
+    tasks,
+    splitRate: globalParams.taskSplitRate,
+  });
 
-  const ganttCharts = [
-    { simulation: exemplaryFor50th, identifier: '50th' },
-    { simulation: exemplaryFor75th, identifier: '75th' },
-    { simulation: exemplaryFor90th, identifier: '90th' },
-    { simulation: exemplaryFor95th, identifier: '95th' },
-    { simulation: exemplaryFor99th, identifier: '99th' },
-  ].map(({ simulation, identifier }) => ({
-    identifier,
-    mermaidCode: generateGanttChart(simulation),
-  }));
+  if (changeRequestMilestone) {
+    injectChangeRequestsIntoTaskList({
+      tasks,
+      taskMap,
+      changeRequestMilestone,
+      changeRequestTasks,
+    });
 
-  return { listOfSimulations, ganttCharts };
+    // Graph recalculation IS needed after injecting change requests because:
+    // 1. attachAllDescendantsFromParentProps: Sets children[] on changeRequestMilestone
+    // 2. attachBlockedTasksFromDependsOnProps: Calculates blocking relationships for new tasks
+    // 3. populateContainerEstimates: Sums up estimates for the changeRequestMilestone container
+    // 4. attachBlockingCounts: Updates totalNumOfBlocks used for task priority sorting
+    attachAllDescendantsFromParentProps(tasks, taskMap);
+    attachBlockedTasksFromDependsOnProps(tasks, taskMap);
+    populateContainerEstimates(tasks, taskMap);
+    attachBlockingCounts(tasks);
+  }
+
+  // Run simulations
+  const startDate = new Date(globalParams.startDate);
+
+  const runIterations = useParallel ? runMultipleIterationsParallel : runMultipleIterations;
+  const { iterations } = await runIterations({
+    tasks,
+    personnel,
+    numIterations: globalParams.numOfMonteCarloIterations,
+    globalParams,
+    startDate,
+    numWorkers,
+  });
+
+  // Calculate completion week for each percentile
+  const percentilesOfInterest = [50, 75, 90, 95, 99];
+  const completionWeeks = iterations.map(iter => iter.completionWeek);
+  const completionWeekPercentiles = calculatePercentiles(completionWeeks, percentilesOfInterest);
+
+  // Replay percentile iterations with full workedWeeks tracking for Gantt chart generation
+  const ganttCharts = percentilesOfInterest.map(percentile => {
+    const targetCompletionWeek = completionWeekPercentiles[`p${percentile}`];
+    const iteration = findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek });
+
+    // Replay with full tracking using the same seed
+    const tasksCopy = deepClone(tasks);
+    const personnelCopy = deepClone(personnel);
+    const taskMapCopy = new Map(tasksCopy.map(t => [t.id, t]));
+    const iterationWithFullData = runSingleIteration({
+      tasks: tasksCopy,
+      personnel: personnelCopy,
+      globalParams,
+      startDate,
+      seed: iteration.seed,
+      taskMap: taskMapCopy,
+      skipWorkedWeeks: false,
+    });
+
+    return {
+      identifier: `${percentile}th`,
+      mermaidCode: generateGanttChartCode({
+        iteration: iterationWithFullData,
+        tasks: tasksCopy,
+        personnel: personnelCopy,
+        title: `${percentile}th Percentile Timeline (Week ${iterationWithFullData.completionWeek})`,
+        startDate,
+      }),
+    };
+  });
+
+  return {
+    listOfSimulations: iterations,
+    completionWeekPercentiles,
+    ganttCharts,
+  };
 }
 
 export default monteCarloUseCase;

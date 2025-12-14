@@ -315,6 +315,23 @@
           "minLevel": "mid"
         }
       ]
+    },
+
+    {
+      "id": "spike-q2-features",
+      "title": "Q2 Feature Planning - requires stakeholder availability",
+      "type": "spike",
+      "fibonacciEstimate": 3,
+      "mostProbableEstimateInRange": 2,
+      "parents": ["milestone-production"],
+      "dependsOnTasks": [],
+      "onlyStartableAt": "2025-04-01",
+      "requiredSkills": [
+        {
+          "name": "backend",
+          "minLevel": "senior"
+        }
+      ]
     }
   ],
 
@@ -332,7 +349,7 @@
         },
         {
           "name": "frontend",
-          "minLevel": "mid"
+          "minLevel": "senior"
         }
       ],
       "vacationsAt": [
@@ -367,6 +384,25 @@
       "hired": true,
       "onboarded": false,
       "skills": [
+        {
+          "name": "frontend",
+          "minLevel": "junior"
+        }
+      ],
+      "vacationsAt": []
+    },
+    {
+      "id": "dev-david",
+      "name": "David Chen",
+      "level": "mid",
+      "hired": false,
+      "onboarded": false,
+      "startDate": "2025-02-15",
+      "skills": [
+        {
+          "name": "backend",
+          "minLevel": "mid"
+        },
         {
           "name": "frontend",
           "minLevel": "junior"

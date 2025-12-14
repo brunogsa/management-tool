@@ -42,6 +42,42 @@ Performs a Monte Carlo simulation to predict the probabilistic distribution of t
 yarn monte-carlo --help
 ```
 
+**Simulation Features:**
+
+The Monte Carlo simulation models realistic project dynamics through multiple iterations to generate probabilistic completion forecasts:
+
+- **Core Simulation**
+  - Multi-iteration execution with percentile analysis (50th, 75th, 90th, 95th, 99th)
+  - Time tracking with sprint/week progression
+  - Task dependency and startability detection
+  - Skill-based personnel matching with minimum level requirements
+  - Velocity factors by skill level (intern: 0.5, junior: 0.75, mid: 1.0, senior: 1.25, specialist: 1.5)
+
+- **Task Dynamics**
+  - Task splits: 15% probability of tasks splitting during execution (configurable)
+  - Rework: Skill-based probability (intern: 21%, junior: 13%, mid: 8%, senior: 5%, specialist: 3%)
+
+- **Personnel Availability**
+  - Vacation scheduling: Zero capacity during scheduled vacation periods
+  - Sick leave: 0.0389% weekly probability per person, random 1-5 day duration
+
+- **Hiring & Onboarding**
+  - Hiring delays: Level-based hiring time before personnel become available
+  - Onboarding periods: 50% capacity reduction during ramp-up time
+  - Future hire modeling: Personnel can start as unhired and join during project execution
+
+- **Turnover & Replacement**
+  - Personnel departure: 0.301% weekly quit probability
+  - Automatic replacement: New personnel created with same skills and level
+  - Full replacement cycle: Hiring delay + onboarding period for replacements
+
+- **Constraints**
+  - Task start dates: Optional `onlyStartableAt` field to delay task availability
+
+- **Output**
+  - Gantt charts: Mermaid diagrams for each percentile showing task start/end dates
+  - Completion date distributions: Statistical analysis across all iterations
+
 ## JSON Input Format
 
 Check [input-template.json](./input-template.json) for the complete structure. The input file includes:
@@ -117,20 +153,38 @@ These types represent executable work items that cannot contain children:
 - Mermaid diagram generation for task trees
 - Input validation framework
 - Basic project structure and command interface
+- Monte Carlo simulation engine with skill matching, task splits, rework, vacations, sick leave, hiring/onboarding, turnover, and Gantt output
 
-### Pending Implementation
+### Completed Implementation
 
-The following refactors and design tasks are planned:
+The Monte Carlo simulation is fully implemented with:
 
-- should we have on `parameters.json` an array `skills`? Or should we extract those from the array `personnel`?
+- ✅ Multi-iteration execution with percentile analysis (50th, 75th, 90th, 95th, 99th)
+- ✅ Time tracking with weekly progression
+- ✅ Task dependency and startability detection
+- ✅ Skill-based personnel matching with minimum level requirements
+- ✅ Velocity factors by skill level
+- ✅ Task prioritization: "Finish what we started" philosophy (in-progress tasks first, then by blocking count)
+- ✅ Rework modeling (skill-based rates, consumed without generating more rework)
+- ✅ Vacation scheduling (manual + automatic 4-week annual vacations with max 1 person per week)
+- ✅ Sick leave simulation (0.0389% weekly probability, 1-week duration)
+- ✅ Hiring & onboarding with capacity reduction during ramp-up
+- ✅ Turnover & automatic replacement
+- ✅ Task start date constraints (onlyStartableAt field)
+- ✅ Change Request milestone generation (scope changes as percentage of total effort)
+- ✅ Personnel startDate support (for modeling new hires during project)
+- ✅ Enhanced Gantt charts showing estimates, rework, blocking counts, and vacations
 
-The Monte Carlo simulation is partially implemented with the following steps planned:
+## Task Assignment Heuristics
 
-1. Simple simulation: Basic skill requirements and velocity factors
-2. Task split rate handling
-3. Rework modeling
-4. Vacation scheduling
-5. Sick leave simulation
-6. Hiring and onboarding processes
-7. Turnover and re-hiring/onboarding
-8. Task start date constraints
+The simulation uses a multi-factor scoring heuristic in `assignTasksToPersonnel()` to optimally match tasks to personnel. Each candidate is scored based on the following weighted factors (defined in `ASSIGNMENT_HEURISTIC_WEIGHTS`):
+
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| **Skill Affinity** | 35% | Prefers exact skill matches over overqualified personnel. Penalizes people with many extra skills. |
+| **Workload Balancing** | 25% | Distributes work evenly; prefers people with fewer total assignments. |
+| **Continuity** | 20% | Keeps the same person working on a task they've already started. |
+| **Seniority** | 10% | Higher seniority gets a slight boost. |
+| **Knowledge Spread** | 10% | Spreads knowledge across the team; prefers assigning people who haven't worked on a skill area yet. |
+
+The heuristic scores all qualified candidates for each task and assigns the highest-scoring person. This approach balances efficiency (matching skills, reducing context switching) with team health (workload distribution, knowledge sharing).

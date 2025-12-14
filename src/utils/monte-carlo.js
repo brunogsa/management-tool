@@ -168,22 +168,24 @@ function _updateAssignmentTracking({ assignments, state }) {
   }
 }
 
-function findStartableTasks(tasks, taskMap) {
-  // Use provided taskMap or create one for quick lookup
-  const map = taskMap || new Map(tasks.map(t => [t.id, t]));
+function findStartableTasks(incompleteTasks, taskMap) {
+  // incompleteTasks is a Set of task objects (only incomplete leaf tasks)
+  // taskMap is used for dependency lookup
+  const result = [];
 
-  return tasks.filter(task => {
-    // Task must have remaining work
-    const hasRemainingWork = !_isTaskDone(task);
-
+  for (const task of incompleteTasks) {
     // All dependencies must be complete
     const allDependenciesCompleted = !task.dependsOnTasks || task.dependsOnTasks.length === 0 || task.dependsOnTasks.every(depId => {
-      const depTask = map.get(depId);
+      const depTask = taskMap.get(depId);
       return depTask && _isTaskDone(depTask);
     });
 
-    return hasRemainingWork && allDependenciesCompleted;
-  });
+    if (allDependenciesCompleted) {
+      result.push(task);
+    }
+  }
+
+  return result;
 }
 
 function isPersonQualifiedForTask({ person, task }) {
@@ -449,12 +451,12 @@ function _getAvailablePersonnel({ personnel, currentWeek, currentDate }) {
   );
 }
 
-function _getStartableTasks({ tasks, currentDate }) {
-  const startable = findStartableTasks(tasks);
+function _getStartableTasks({ incompleteTasks, taskMap, currentDate }) {
+  const startable = findStartableTasks(incompleteTasks, taskMap);
   return filterTasksByStartDate({ tasks: startable, currentDate });
 }
 
-function _executeAssignments({ assignments, state, globalParams, taskCompletionDates, skipWorkedWeeks = false, logContext = {} }) {
+function _executeAssignments({ assignments, state, globalParams, taskCompletionDates, incompleteTasks, skipWorkedWeeks = false, logContext = {} }) {
   for (const { task, assignedPerson } of assignments) {
     const reworkRate = globalParams.reworkRateByLevel[assignedPerson.level];
     const velocityRate = globalParams.velocityByLevel[assignedPerson.level];
@@ -477,15 +479,16 @@ function _executeAssignments({ assignments, state, globalParams, taskCompletionD
       });
     }
 
-    // Track completion
+    // Track completion and remove from incomplete set
     if (_isTaskDone(task) && !taskCompletionDates[task.id]) {
       taskCompletionDates[task.id] = state.currentWeek;
+      incompleteTasks.delete(task);
       info('Task completed', { taskId: task.id, completionWeek: state.currentWeek, ...logContext });
     }
   }
 }
 
-function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, currentDate, taskCompletionDates, skipWorkedWeeks = false, logContext = {} }) {
+function _processWeeklyWorkAssignments({ incompleteTasks, taskMap, personnel, state, globalParams, currentDate, taskCompletionDates, skipWorkedWeeks = false, logContext = {} }) {
   let hadAnyWork = false;
 
   // Keep assigning until no more work can be done (allows multiple tasks per person per week)
@@ -500,7 +503,7 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
       break;
     }
 
-    const startableTasks = _getStartableTasks({ tasks, currentDate });
+    const startableTasks = _getStartableTasks({ incompleteTasks, taskMap, currentDate });
 
     if (startableTasks.length === 0) {
       break;
@@ -531,6 +534,7 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
       state,
       globalParams,
       taskCompletionDates,
+      incompleteTasks,
       skipWorkedWeeks,
       logContext,
     });
@@ -541,8 +545,8 @@ function _processWeeklyWorkAssignments({ tasks, personnel, state, globalParams, 
   return hadAnyWork;
 }
 
-function _checkSimulationCompletion(tasks) {
-  return tasks.every(task => _isTaskDone(task));
+function _checkSimulationCompletion(incompleteTasks) {
+  return incompleteTasks.size === 0;
 }
 
 function _validateSimulationCompletion({ tasks, personnel, taskCompletionDates, maxWeeks }) {
@@ -596,13 +600,14 @@ function _validateSimulationCompletion({ tasks, personnel, taskCompletionDates, 
   throw new Error(errorMessage);
 }
 
-function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, skipWorkedWeeks = false, logContext = {} }) {
+function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, taskMap, skipWorkedWeeks = false, logContext = {} }) {
   const randomFunc = seedrandom(seed);
   const state = initializeSimulationState();
   const taskCompletionDates = {};
   const MAX_WEEKS = 1000;
 
-  // Initialize task durations
+  // Initialize task durations and build incomplete tasks set
+  const incompleteTasks = new Set();
   for (const task of tasks) {
     if (task.remainingDuration === undefined) {
       task.remainingDuration = task.mostProbableEstimateInRange || 0;
@@ -610,6 +615,10 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, s
     }
     if (task.remainingReworkDuration === undefined) {
       task.remainingReworkDuration = 0;
+    }
+    // Add all tasks with work to incomplete set
+    if (task.remainingDuration > 0 || task.remainingReworkDuration > 0) {
+      incompleteTasks.add(task);
     }
   }
 
@@ -654,7 +663,8 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, s
 
     // Process weekly work assignments and execution
     const hadWork = _processWeeklyWorkAssignments({
-      tasks,
+      incompleteTasks,
+      taskMap,
       personnel,
       state,
       globalParams,
@@ -665,7 +675,7 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, s
     });
 
     // Check if simulation is complete
-    if (!hadWork && _checkSimulationCompletion(tasks)) {
+    if (!hadWork && _checkSimulationCompletion(incompleteTasks)) {
       info('Simulation complete', { reason: 'All tasks done', ...logContext });
       break;
     }
@@ -690,6 +700,7 @@ function runMultipleIterations({ tasks, personnel, numIterations, globalParams, 
     logContext.iterationIndex = i;
     const tasksCopy = deepClone(tasks);
     const personnelCopy = deepClone(personnel);
+    const taskMap = new Map(tasksCopy.map(t => [t.id, t]));
 
     const seed = Date.now() + i;
     const result = runSingleIteration({
@@ -698,6 +709,7 @@ function runMultipleIterations({ tasks, personnel, numIterations, globalParams, 
       globalParams,
       startDate,
       seed,
+      taskMap,
       skipWorkedWeeks: true,
       logContext,
     });

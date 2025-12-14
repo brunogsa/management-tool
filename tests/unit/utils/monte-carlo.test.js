@@ -155,7 +155,9 @@ describe('Monte Carlo Simulation', () => {
         task2.remainingReworkDuration = 0;
 
         const tasks = [task1, task2];
-        const startable = findStartableTasks(tasks);
+        const incompleteTasks = new Set(tasks);
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        const startable = findStartableTasks(incompleteTasks, taskMap);
 
         expect(startable).toHaveLength(2);
         expect(startable).toContain(task1);
@@ -170,10 +172,13 @@ describe('Monte Carlo Simulation', () => {
         const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
         task2.remainingDuration = 5;
         task2.remainingReworkDuration = 0;
-        task2.tasksBeingBlocked = [task1]; // depends on task1
+        task2.dependsOnTasks = ['t1']; // depends on task1
 
         const tasks = [task1, task2];
-        const startable = findStartableTasks(tasks);
+        // Only task2 is incomplete (task1 is done)
+        const incompleteTasks = new Set([task2]);
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        const startable = findStartableTasks(incompleteTasks, taskMap);
 
         expect(startable).toHaveLength(1);
         expect(startable).toContain(task2);
@@ -190,7 +195,9 @@ describe('Monte Carlo Simulation', () => {
         task2.dependsOnTasks = ['t1']; // depends on incomplete task1
 
         const tasks = [task1, task2];
-        const startable = findStartableTasks(tasks);
+        const incompleteTasks = new Set(tasks);
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        const startable = findStartableTasks(incompleteTasks, taskMap);
 
         expect(startable).toHaveLength(1);
         expect(startable).toContain(task1);
@@ -204,7 +211,10 @@ describe('Monte Carlo Simulation', () => {
         task1.tasksBeingBlocked = [];
 
         const tasks = [task1];
-        const startable = findStartableTasks(tasks);
+        // No incomplete tasks (task1 is done)
+        const incompleteTasks = new Set();
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        const startable = findStartableTasks(incompleteTasks, taskMap);
 
         expect(startable).toHaveLength(0);
       });
@@ -409,8 +419,9 @@ describe('Monte Carlo Simulation', () => {
 
         const globalParams = createDefaultGlobalParams();
         const startDate = new Date('2025-01-01');
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
 
-        const result = runSingleIteration({ tasks, personnel, globalParams, startDate });
+        const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
 
         expect(result.completionWeek).toBeGreaterThan(0);
         expect(task1.isDone()).toBe(true);
@@ -439,8 +450,9 @@ describe('Monte Carlo Simulation', () => {
 
         const globalParams = createDefaultGlobalParams();
         const startDate = new Date('2025-01-01');
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
 
-        const result = runSingleIteration({ tasks, personnel, globalParams, startDate });
+        const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
 
         expect(result.taskCompletionDates).toBeDefined();
         expect(result.taskCompletionDates.t1).toBeGreaterThan(0);
@@ -476,8 +488,9 @@ describe('Monte Carlo Simulation', () => {
 
         const globalParams = createDefaultGlobalParams();
         const startDate = new Date('2025-01-01');
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
 
-        const result = runSingleIteration({ tasks, personnel, globalParams, startDate });
+        const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
 
         expect(result.taskCompletionDates.t1).toBeLessThan(result.taskCompletionDates.t2);
       });
@@ -502,8 +515,9 @@ describe('Monte Carlo Simulation', () => {
 
         const globalParams = createDefaultGlobalParams();
         const startDate = new Date('2025-01-01');
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
 
-        const result = runSingleIteration({ tasks, personnel, globalParams, startDate });
+        const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
 
         expect(result.completionWeek).toBeGreaterThan(1);
       });

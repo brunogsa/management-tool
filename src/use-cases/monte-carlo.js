@@ -109,12 +109,14 @@ function monteCarloUseCase(inputData) {
     // Replay with full tracking using the same seed
     const tasksCopy = deepClone(tasks);
     const personnelCopy = deepClone(personnel);
+    const taskMapCopy = new Map(tasksCopy.map(t => [t.id, t]));
     const iterationWithFullData = runSingleIteration({
       tasks: tasksCopy,
       personnel: personnelCopy,
       globalParams,
       startDate,
       seed: iteration.seed,
+      taskMap: taskMapCopy,
       skipWorkedWeeks: false,
     });
 

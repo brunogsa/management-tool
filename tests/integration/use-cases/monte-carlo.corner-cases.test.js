@@ -24,7 +24,7 @@ const createDeterministicInput = ({ numIterations = 10 } = {}) => {
 
 describe('Monte Carlo Corner Cases Integration', () => {
   describe('Personnel edge cases', () => {
-    it('should throw validation error when no personnel can work on required skills', () => {
+    it('should throw validation error when no personnel can work on required skills', async () => {
       const input = createDeterministicInput();
 
       // Remove all personnel with backend skills
@@ -33,10 +33,10 @@ describe('Monte Carlo Corner Cases Integration', () => {
       );
 
       // Tasks requiring backend (which no one can do) should fail validation before simulation
-      expect(() => monteCarloUseCase(input)).toThrow('no personnel can fulfill all requirements');
+      await expect(monteCarloUseCase(input)).rejects.toThrow('no personnel can fulfill all requirements');
     });
 
-    it('should handle all personnel starting as not hired', () => {
+    it('should handle all personnel starting as not hired', async () => {
       const input = createDeterministicInput();
 
       // Set all personnel to not hired with future start dates
@@ -47,7 +47,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
         person.startDate = futureDate;
       }
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should still complete, but take longer due to hiring delay
       expect(result.listOfSimulations).toHaveLength(10);
@@ -58,7 +58,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
       }
     });
 
-    it('should handle all personnel needing onboarding', () => {
+    it('should handle all personnel needing onboarding', async () => {
       const input = createDeterministicInput();
 
       // Set all personnel to hired but not onboarded
@@ -67,7 +67,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
         person.onboarded = false;
       }
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should still complete after onboarding period
       expect(result.listOfSimulations).toHaveLength(10);
@@ -77,7 +77,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
       }
     });
 
-    it('should handle personnel with overlapping vacations at simulation start', () => {
+    it('should handle personnel with overlapping vacations at simulation start', async () => {
       const input = createDeterministicInput();
 
       // Give everyone vacation at the start of simulation
@@ -90,7 +90,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
         }
       }
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should still complete after vacation ends
       expect(result.listOfSimulations).toHaveLength(10);
@@ -98,7 +98,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
   });
 
   describe('Task edge cases', () => {
-    it('should reject tasks with zero estimates', () => {
+    it('should reject tasks with zero estimates', async () => {
       const input = createDeterministicInput();
 
       // Add a leaf task with zero estimate
@@ -114,10 +114,10 @@ describe('Monte Carlo Corner Cases Integration', () => {
       });
 
       // Should throw validation error for zero estimate
-      expect(() => monteCarloUseCase(input)).toThrow('has zero estimate');
+      await expect(monteCarloUseCase(input)).rejects.toThrow('has zero estimate');
     });
 
-    it('should handle deep dependency chains', () => {
+    it('should handle deep dependency chains', async () => {
       const input = createDeterministicInput();
 
       // Create a chain of 10 dependent tasks
@@ -135,7 +135,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
         });
       }
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should complete successfully
       expect(result.listOfSimulations).toHaveLength(10);
@@ -150,7 +150,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
       }
     });
 
-    it('should handle multiple independent task branches', () => {
+    it('should handle multiple independent task branches', async () => {
       const input = createDeterministicInput();
 
       // Create 5 independent branches of 3 tasks each
@@ -169,13 +169,13 @@ describe('Monte Carlo Corner Cases Integration', () => {
         }
       }
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should complete successfully and parallelize branches
       expect(result.listOfSimulations).toHaveLength(10);
     });
 
-    it('should handle task with no required skills (anyone can work on it)', () => {
+    it('should handle task with no required skills (anyone can work on it)', async () => {
       const input = createDeterministicInput();
 
       // Add task with no skill requirements
@@ -190,7 +190,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
         requiredSkills: [],
       });
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       expect(result.listOfSimulations).toHaveLength(10);
 
@@ -199,11 +199,11 @@ describe('Monte Carlo Corner Cases Integration', () => {
       }
     });
 
-    it('should handle taskSplitRate of 0 (no change requests)', () => {
+    it('should handle taskSplitRate of 0 (no change requests)', async () => {
       const input = createDeterministicInput();
       input.globalParams.taskSplitRate = 0;
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       expect(result.listOfSimulations).toHaveLength(10);
 
@@ -215,11 +215,11 @@ describe('Monte Carlo Corner Cases Integration', () => {
       }
     });
 
-    it('should handle high taskSplitRate (50%)', () => {
+    it('should handle high taskSplitRate (50%)', async () => {
       const input = createDeterministicInput();
       input.globalParams.taskSplitRate = 0.5;
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       expect(result.listOfSimulations).toHaveLength(10);
 
@@ -233,7 +233,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
   });
 
   describe('Global params edge cases', () => {
-    it('should handle very high rework rates', () => {
+    it('should handle very high rework rates', async () => {
       const input = createDeterministicInput();
 
       // Set high rework rates for all levels
@@ -245,13 +245,13 @@ describe('Monte Carlo Corner Cases Integration', () => {
         specialist: 0.15,
       };
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should still complete, but take longer
       expect(result.listOfSimulations).toHaveLength(10);
     });
 
-    it('should handle lower than default velocity rates', () => {
+    it('should handle lower than default velocity rates', async () => {
       const input = createDeterministicInput({ numIterations: 10 });
 
       // Set moderately low velocity (not extreme, to keep simulation time reasonable)
@@ -263,7 +263,7 @@ describe('Monte Carlo Corner Cases Integration', () => {
         specialist: 0.9,
       };
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should still complete, but take longer
       expect(result.listOfSimulations).toHaveLength(10);

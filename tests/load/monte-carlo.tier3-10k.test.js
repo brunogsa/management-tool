@@ -31,7 +31,7 @@ describe('Monte Carlo Load Tests - Tier 3 (10,000 iterations)', () => {
     Math.random = originalRandom;
   });
 
-  it('should handle 10,000 iterations within performance budget', () => {
+  it('should handle 10,000 iterations within performance budget', async () => {
     Math.random = createSeededRandom(11111);
 
     const input = loadInputTemplate();
@@ -40,7 +40,7 @@ describe('Monte Carlo Load Tests - Tier 3 (10,000 iterations)', () => {
     input.globalParams.turnOverRate = 0.01;
 
     const startTime = Date.now();
-    const result = monteCarloUseCase(input);
+    const result = await monteCarloUseCase(input);
     const duration = Date.now() - startTime;
 
     // Performance: 10K iterations should complete in < 90 seconds
@@ -63,7 +63,7 @@ describe('Monte Carlo Load Tests - Tier 3 (10,000 iterations)', () => {
     console.log('==========================\n');
   });
 
-  it('should have stable percentile estimates at 10,000 iterations', () => {
+  it('should have stable percentile estimates at 10,000 iterations', async () => {
     Math.random = createSeededRandom(22222);
 
     const input = loadInputTemplate();
@@ -71,7 +71,7 @@ describe('Monte Carlo Load Tests - Tier 3 (10,000 iterations)', () => {
     input.globalParams.sickRate = 0.03;
     input.globalParams.turnOverRate = 0.02;
 
-    const result = monteCarloUseCase(input);
+    const result = await monteCarloUseCase(input);
 
     const completionWeeks = result.listOfSimulations.map(s => s.completionWeek);
     const mean = completionWeeks.reduce((a, b) => a + b, 0) / completionWeeks.length;

@@ -31,13 +31,13 @@ describe('Monte Carlo Randomness Integration', () => {
       Math.random = originalRandom;
     });
 
-    it('should handle sick leave when enabled', () => {
+    it('should handle sick leave when enabled', async () => {
       const input = loadInputTemplate();
       input.globalParams.numOfMonteCarloIterations = 10;
       input.globalParams.sickRate = 0.1; // 10% weekly sick rate for testing
       input.globalParams.turnOverRate = 0;
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should still complete all iterations
       expect(result.listOfSimulations).toHaveLength(10);
@@ -48,26 +48,26 @@ describe('Monte Carlo Randomness Integration', () => {
       }
     });
 
-    it('should handle task split rate when enabled', () => {
+    it('should handle task split rate when enabled', async () => {
       const input = loadInputTemplate();
       input.globalParams.numOfMonteCarloIterations = 10;
       input.globalParams.sickRate = 0;
       input.globalParams.turnOverRate = 0;
       // Template already has taskSplitRate: 0.15
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should still complete all iterations
       expect(result.listOfSimulations).toHaveLength(10);
     });
 
-    it('should produce varied results across iterations due to seeded randomness', () => {
+    it('should produce varied results across iterations due to seeded randomness', async () => {
       const input = loadInputTemplate();
       input.globalParams.numOfMonteCarloIterations = 10;
       input.globalParams.sickRate = 0.05;
       input.globalParams.turnOverRate = 0.01;
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // With randomness enabled, completion weeks should vary across iterations
       const completionWeeks = result.listOfSimulations.map(s => s.completionWeek);
@@ -89,7 +89,7 @@ describe('Monte Carlo Randomness Integration', () => {
       Math.random = originalRandom;
     });
 
-    it('should handle moderate turnover rate', () => {
+    it('should handle moderate turnover rate', async () => {
       // Deterministic random that triggers some turnover
       let callCount = 0;
       Math.random = () => {
@@ -103,7 +103,7 @@ describe('Monte Carlo Randomness Integration', () => {
       input.globalParams.sickRate = 0;
       input.globalParams.turnOverRate = 0.05; // 5% weekly turnover
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should complete despite turnover
       expect(result.listOfSimulations).toHaveLength(10);
@@ -113,7 +113,7 @@ describe('Monte Carlo Randomness Integration', () => {
       }
     });
 
-    it('should create replacements when personnel quit', () => {
+    it('should create replacements when personnel quit', async () => {
       // Always trigger turnover for first person
       let callCount = 0;
       Math.random = () => {
@@ -127,7 +127,7 @@ describe('Monte Carlo Randomness Integration', () => {
       input.globalParams.sickRate = 0;
       input.globalParams.turnOverRate = 0.1;
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Should still complete
       expect(result.listOfSimulations).toHaveLength(10);

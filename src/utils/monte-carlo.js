@@ -1,6 +1,9 @@
 import seedrandom from 'seedrandom';
+import os from 'os';
+import { fileURLToPath } from 'url';
 import { deepClone } from './graph.js';
 import { info, debug } from './logger.js';
+import runInWorker from './run-in-worker.js';
 import {
   LEVEL,
   LEVEL_RANK,
@@ -727,6 +730,78 @@ function runMultipleIterations({ tasks, personnel, numIterations, globalParams, 
   return {
     iterations,
   };
+}
+
+// Runs a batch of iterations (used by workers for parallel execution)
+function runIterationBatch({ tasks, personnel, globalParams, startDate, seeds }) {
+  const iterations = [];
+
+  for (const seed of seeds) {
+    const tasksCopy = deepClone(tasks);
+    const personnelCopy = deepClone(personnel);
+    const taskMap = new Map(tasksCopy.map(t => [t.id, t]));
+
+    const result = runSingleIteration({
+      tasks: tasksCopy,
+      personnel: personnelCopy,
+      globalParams,
+      startDate: new Date(startDate),
+      seed,
+      taskMap,
+      skipWorkedWeeks: true,
+    });
+
+    iterations.push({
+      completionWeek: result.completionWeek,
+      taskCompletionDates: result.taskCompletionDates,
+      seed,
+    });
+  }
+
+  return iterations;
+}
+
+// Runs multiple iterations in parallel using worker threads
+async function runMultipleIterationsParallel({ tasks, personnel, numIterations, globalParams, startDate, numWorkers, logContext = {} }) {
+  const workerCount = numWorkers || Math.max(1, os.cpus().length - 1);
+  const iterationsPerWorker = Math.ceil(numIterations / workerCount);
+
+  info('Starting parallel Monte Carlo simulation', { numIterations, numWorkers: workerCount, ...logContext });
+
+  // Generate all seeds upfront
+  const baseSeed = Date.now();
+  const allSeeds = Array.from({ length: numIterations }, (_, i) => baseSeed + i);
+
+  // Split seeds into batches for each worker
+  const batches = [];
+  for (let i = 0; i < workerCount; i++) {
+    const startIdx = i * iterationsPerWorker;
+    const endIdx = Math.min(startIdx + iterationsPerWorker, numIterations);
+    if (startIdx < numIterations) {
+      batches.push(allSeeds.slice(startIdx, endIdx));
+    }
+  }
+
+  // Get the module path for workers
+  const modulePath = fileURLToPath(import.meta.url);
+
+  // Run batches in parallel
+  const workerPromises = batches.map(seeds =>
+    runInWorker({
+      modulePath,
+      exportName: 'runIterationBatch',
+      args: [{ tasks, personnel, globalParams, startDate: startDate.toISOString(), seeds }],
+    })
+  );
+
+  const results = await Promise.all(workerPromises);
+
+  // Flatten results from all workers
+  const iterations = results.flat();
+
+  info('Parallel simulation complete', { totalIterations: iterations.length, ...logContext });
+
+  return { iterations };
 }
 
 // Quickselect algorithm - O(n) average time to find k-th smallest element
@@ -1493,6 +1568,8 @@ export {
   assignWorkToTask,
   runSingleIteration,
   runMultipleIterations,
+  runIterationBatch,
+  runMultipleIterationsParallel,
   calculatePercentiles,
   sortTasksByPriority,
   assignTasksToPersonnel,

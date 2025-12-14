@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -23,6 +23,9 @@ const createSeededRandom = (seed) => {
 describe('Monte Carlo Load Tests - Tier 4 (100,000 iterations)', () => {
   let originalRandom;
 
+  // Set timeout to 10 minutes for 100K iteration tests
+  jest.setTimeout(600000);
+
   beforeEach(() => {
     originalRandom = Math.random;
   });
@@ -31,7 +34,7 @@ describe('Monte Carlo Load Tests - Tier 4 (100,000 iterations)', () => {
     Math.random = originalRandom;
   });
 
-  it('should handle 100,000 iterations within performance budget', () => {
+  it('should handle 100,000 iterations within performance budget', async () => {
     Math.random = createSeededRandom(314159);
 
     const input = loadInputTemplate();
@@ -40,7 +43,7 @@ describe('Monte Carlo Load Tests - Tier 4 (100,000 iterations)', () => {
     input.globalParams.turnOverRate = 0.01;
 
     const startTime = Date.now();
-    const result = monteCarloUseCase(input);
+    const result = await monteCarloUseCase(input);
     const duration = Date.now() - startTime;
 
     // Performance budget: 100K iterations should complete in < 10 minutes
@@ -71,7 +74,7 @@ describe('Monte Carlo Load Tests - Tier 4 (100,000 iterations)', () => {
     console.log('================================\n');
   });
 
-  it('should have excellent statistical precision at 100,000 iterations', () => {
+  it('should have excellent statistical precision at 100,000 iterations', async () => {
     Math.random = createSeededRandom(271828);
 
     const input = loadInputTemplate();
@@ -79,7 +82,7 @@ describe('Monte Carlo Load Tests - Tier 4 (100,000 iterations)', () => {
     input.globalParams.sickRate = 0.05;
     input.globalParams.turnOverRate = 0.02;
 
-    const result = monteCarloUseCase(input);
+    const result = await monteCarloUseCase(input);
 
     const completionWeeks = result.listOfSimulations.map(s => s.completionWeek);
     const mean = completionWeeks.reduce((a, b) => a + b, 0) / completionWeeks.length;

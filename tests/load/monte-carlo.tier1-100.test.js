@@ -31,7 +31,7 @@ describe('Monte Carlo Load Tests - Tier 1 (100 iterations)', () => {
     Math.random = originalRandom;
   });
 
-  it('should produce variation in completion weeks with randomness enabled', () => {
+  it('should produce variation in completion weeks with randomness enabled', async () => {
     Math.random = createSeededRandom(42);
 
     const input = loadInputTemplate();
@@ -39,7 +39,7 @@ describe('Monte Carlo Load Tests - Tier 1 (100 iterations)', () => {
     input.globalParams.sickRate = 0.05;
     input.globalParams.turnOverRate = 0;
 
-    const result = monteCarloUseCase(input);
+    const result = await monteCarloUseCase(input);
 
     const completionWeeks = result.listOfSimulations.map(s => s.completionWeek);
     const uniqueWeeks = [...new Set(completionWeeks)];
@@ -47,7 +47,7 @@ describe('Monte Carlo Load Tests - Tier 1 (100 iterations)', () => {
     expect(uniqueWeeks.length).toBeGreaterThan(1);
   });
 
-  it('should maintain percentile ordering', () => {
+  it('should maintain percentile ordering', async () => {
     Math.random = createSeededRandom(777);
 
     const input = loadInputTemplate();
@@ -55,7 +55,7 @@ describe('Monte Carlo Load Tests - Tier 1 (100 iterations)', () => {
     input.globalParams.sickRate = 0.1;
     input.globalParams.turnOverRate = 0.02;
 
-    const result = monteCarloUseCase(input);
+    const result = await monteCarloUseCase(input);
     const { p50, p75, p90, p95, p99 } = result.completionWeekPercentiles;
 
     expect(p50).toBeLessThanOrEqual(p75);
@@ -64,7 +64,7 @@ describe('Monte Carlo Load Tests - Tier 1 (100 iterations)', () => {
     expect(p95).toBeLessThanOrEqual(p99);
   });
 
-  it('should complete all iterations with combined sick leave and turnover', () => {
+  it('should complete all iterations with combined sick leave and turnover', async () => {
     Math.random = createSeededRandom(54321);
 
     const input = loadInputTemplate();
@@ -72,7 +72,7 @@ describe('Monte Carlo Load Tests - Tier 1 (100 iterations)', () => {
     input.globalParams.sickRate = 0.08;
     input.globalParams.turnOverRate = 0.03;
 
-    const result = monteCarloUseCase(input);
+    const result = await monteCarloUseCase(input);
 
     expect(result.listOfSimulations).toHaveLength(100);
 
@@ -82,8 +82,8 @@ describe('Monte Carlo Load Tests - Tier 1 (100 iterations)', () => {
     }
   });
 
-  it('should produce consistent results with same seed', () => {
-    const runSimulation = () => {
+  it('should produce consistent results with same seed', async () => {
+    const runSimulation = async () => {
       Math.random = createSeededRandom(99999);
 
       const input = loadInputTemplate();
@@ -94,8 +94,8 @@ describe('Monte Carlo Load Tests - Tier 1 (100 iterations)', () => {
       return monteCarloUseCase(input);
     };
 
-    const result1 = runSimulation();
-    const result2 = runSimulation();
+    const result1 = await runSimulation();
+    const result2 = await runSimulation();
 
     expect(result1.completionWeekPercentiles).toEqual(result2.completionWeekPercentiles);
   });

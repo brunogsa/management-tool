@@ -92,7 +92,7 @@ async function monteCarloCommand(inputJsonFilepath, outputFilepath) {
       listOfSimulations,
       completionWeekPercentiles,
       ganttCharts,
-    } = monteCarloUseCase(inputData);
+    } = await monteCarloUseCase(inputData, { useParallel: true });
 
     const duration = Date.now() - startTime;
     const memAfter = process.memoryUsage();

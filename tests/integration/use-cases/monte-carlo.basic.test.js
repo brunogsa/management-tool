@@ -24,28 +24,28 @@ const createDeterministicInput = ({ numIterations = 10 } = {}) => {
 
 describe('Monte Carlo Basic Integration', () => {
   describe('Basic simulation flow', () => {
-    it('should complete simulation and return expected structure', () => {
+    it('should complete simulation and return expected structure', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       expect(result).toHaveProperty('listOfSimulations');
       expect(result).toHaveProperty('completionWeekPercentiles');
       expect(result).toHaveProperty('ganttCharts');
     });
 
-    it('should run the specified number of iterations', () => {
+    it('should run the specified number of iterations', async () => {
       const input = createDeterministicInput({ numIterations: 10 });
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       expect(result.listOfSimulations).toHaveLength(10);
     });
 
-    it('should calculate percentiles for p50, p75, p90, p95, p99', () => {
+    it('should calculate percentiles for p50, p75, p90, p95, p99', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       expect(result.completionWeekPercentiles).toHaveProperty('p50');
       expect(result.completionWeekPercentiles).toHaveProperty('p75');
@@ -54,10 +54,10 @@ describe('Monte Carlo Basic Integration', () => {
       expect(result.completionWeekPercentiles).toHaveProperty('p99');
     });
 
-    it('should generate gantt charts for each percentile', () => {
+    it('should generate gantt charts for each percentile', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       expect(result.ganttCharts).toHaveLength(5);
       expect(result.ganttCharts.map(g => g.identifier)).toEqual([
@@ -67,10 +67,10 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Iteration results', () => {
-    it('should track completion week for each iteration', () => {
+    it('should track completion week for each iteration', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       for (const iteration of result.listOfSimulations) {
         expect(iteration).toHaveProperty('completionWeek');
@@ -79,10 +79,10 @@ describe('Monte Carlo Basic Integration', () => {
       }
     });
 
-    it('should track task completion dates for each iteration', () => {
+    it('should track task completion dates for each iteration', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       for (const iteration of result.listOfSimulations) {
         expect(iteration).toHaveProperty('taskCompletionDates');
@@ -90,10 +90,10 @@ describe('Monte Carlo Basic Integration', () => {
       }
     });
 
-    it('should store seed for deterministic replay (workedWeeks skipped for memory optimization)', () => {
+    it('should store seed for deterministic replay (workedWeeks skipped for memory optimization)', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       for (const iteration of result.listOfSimulations) {
         // workedWeeks is skipped for memory optimization, but seed is stored for replay
@@ -104,10 +104,10 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Percentile ordering', () => {
-    it('should have p50 <= p75 <= p90 <= p95 <= p99', () => {
+    it('should have p50 <= p75 <= p90 <= p95 <= p99', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
       const { p50, p75, p90, p95, p99 } = result.completionWeekPercentiles;
 
       expect(p50).toBeLessThanOrEqual(p75);
@@ -118,10 +118,10 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Task dependencies', () => {
-    it('should complete dependent tasks after their dependencies', () => {
+    it('should complete dependent tasks after their dependencies', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       for (const iteration of result.listOfSimulations) {
         const { taskCompletionDates } = iteration;
@@ -154,10 +154,10 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Gantt chart generation', () => {
-    it('should generate valid mermaid code for each percentile', () => {
+    it('should generate valid mermaid code for each percentile', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       for (const chart of result.ganttCharts) {
         expect(chart).toHaveProperty('identifier');
@@ -167,10 +167,10 @@ describe('Monte Carlo Basic Integration', () => {
       }
     });
 
-    it('should include task titles in gantt charts', () => {
+    it('should include task titles in gantt charts', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       for (const chart of result.ganttCharts) {
         // Check for some key tasks from the template
@@ -181,10 +181,10 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Deterministic behavior with no randomness', () => {
-    it('should complete all iterations in the same number of weeks when deterministic', () => {
+    it('should complete all iterations in the same number of weeks when deterministic', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
       const completionWeeks = result.listOfSimulations.map(s => s.completionWeek);
       const uniqueWeeks = [...new Set(completionWeeks)];
 
@@ -192,10 +192,10 @@ describe('Monte Carlo Basic Integration', () => {
       expect(uniqueWeeks).toHaveLength(1);
     });
 
-    it('should produce stable percentiles when no randomness', () => {
+    it('should produce stable percentiles when no randomness', async () => {
       const input = createDeterministicInput();
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // With no randomness, all iterations complete in same week
       // Percentile interpolation may produce slightly different fractional values,
@@ -211,7 +211,7 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Personnel lifecycle', () => {
-    it('should handle personnel with startDate (hiring during simulation)', () => {
+    it('should handle personnel with startDate (hiring during simulation)', async () => {
       const input = createDeterministicInput();
 
       // David Chen has startDate: "2025-02-15" and hired: false
@@ -220,7 +220,7 @@ describe('Monte Carlo Basic Integration', () => {
       expect(david.hired).toBe(false);
       expect(david.startDate).toBe('2025-02-15');
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Simulation should complete successfully
       expect(result.listOfSimulations).toHaveLength(10);
@@ -231,7 +231,7 @@ describe('Monte Carlo Basic Integration', () => {
       }
     });
 
-    it('should handle personnel in onboarding (hired but not onboarded)', () => {
+    it('should handle personnel in onboarding (hired but not onboarded)', async () => {
       const input = createDeterministicInput();
 
       // Carol Martinez has hired: true, onboarded: false
@@ -240,13 +240,13 @@ describe('Monte Carlo Basic Integration', () => {
       expect(carol.hired).toBe(true);
       expect(carol.onboarded).toBe(false);
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Simulation should complete successfully
       expect(result.listOfSimulations).toHaveLength(10);
     });
 
-    it('should handle vacation periods', () => {
+    it('should handle vacation periods', async () => {
       const input = createDeterministicInput();
 
       // Alice has a vacation from 2025-03-10 to 2025-03-17
@@ -254,7 +254,7 @@ describe('Monte Carlo Basic Integration', () => {
       expect(alice).toBeDefined();
       expect(alice.vacationsAt).toHaveLength(1);
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Simulation should complete successfully
       expect(result.listOfSimulations).toHaveLength(10);
@@ -262,7 +262,7 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Task constraints', () => {
-    it('should handle task with onlyStartableAt constraint', () => {
+    it('should handle task with onlyStartableAt constraint', async () => {
       const input = createDeterministicInput();
 
       // spike-q2-features has onlyStartableAt: "2025-04-01"
@@ -270,7 +270,7 @@ describe('Monte Carlo Basic Integration', () => {
       expect(q2Spike).toBeDefined();
       expect(q2Spike.onlyStartableAt).toBe('2025-04-01');
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Simulation should complete successfully
       expect(result.listOfSimulations).toHaveLength(10);
@@ -288,13 +288,13 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Change requests', () => {
-    it('should generate change requests when taskSplitRate is set', () => {
+    it('should generate change requests when taskSplitRate is set', async () => {
       const input = createDeterministicInput();
 
       // Template has taskSplitRate: 0.15
       expect(input.globalParams.taskSplitRate).toBe(0.15);
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       // Simulation should complete successfully
       expect(result.listOfSimulations).toHaveLength(10);
@@ -310,14 +310,14 @@ describe('Monte Carlo Basic Integration', () => {
   });
 
   describe('Task completion', () => {
-    it('should complete all user stories from the template', () => {
+    it('should complete all user stories from the template', async () => {
       const input = createDeterministicInput();
 
       const userStoryIds = input.tasks
         .filter(t => t.type === 'user-story')
         .map(t => t.id);
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       for (const iteration of result.listOfSimulations) {
         for (const storyId of userStoryIds) {
@@ -327,7 +327,7 @@ describe('Monte Carlo Basic Integration', () => {
       }
     });
 
-    it('should complete all leaf tasks (non-container tasks)', () => {
+    it('should complete all leaf tasks (non-container tasks)', async () => {
       const input = createDeterministicInput();
 
       const containerTypes = ['project', 'milestone', 'epic'];
@@ -335,7 +335,7 @@ describe('Monte Carlo Basic Integration', () => {
         .filter(t => !containerTypes.includes(t.type))
         .map(t => t.id);
 
-      const result = monteCarloUseCase(input);
+      const result = await monteCarloUseCase(input);
 
       for (const iteration of result.listOfSimulations) {
         for (const taskId of leafTaskIds) {

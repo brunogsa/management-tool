@@ -9,6 +9,7 @@ import {
 } from '../utils/graph.js';
 import {
   runMultipleIterations,
+  runMultipleIterationsParallel,
   runSingleIteration,
   calculatePercentiles,
   findClosestIterationForTargetCompletionWeek,
@@ -44,7 +45,7 @@ function _normalizeDateFields({ tasks, personnel }) {
   }
 }
 
-function monteCarloUseCase(inputData) {
+async function monteCarloUseCase(inputData, { useParallel = true, numWorkers } = {}) {
   inputValidator(inputData);
 
   const { globalParams, tasks, personnel } = inputData;
@@ -88,12 +89,14 @@ function monteCarloUseCase(inputData) {
   // Run simulations
   const startDate = new Date(globalParams.startDate);
 
-  const { iterations } = runMultipleIterations({
+  const runIterations = useParallel ? runMultipleIterationsParallel : runMultipleIterations;
+  const { iterations } = await runIterations({
     tasks,
     personnel,
     numIterations: globalParams.numOfMonteCarloIterations,
     globalParams,
     startDate,
+    numWorkers,
   });
 
   // Calculate completion week for each percentile

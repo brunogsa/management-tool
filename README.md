@@ -124,7 +124,6 @@ These types represent executable work items that cannot contain children:
 
 - **`tech-debt`** - Refactoring, cleanup, or technical debt reduction
   - Example: "Refactor authentication module", "Remove deprecated API endpoints"
-:x
 
 - **`improvement`** - Enhancement to existing functionality (performance, UX, etc.)
   - Example: "Optimize image loading performance", "Add keyboard shortcuts"

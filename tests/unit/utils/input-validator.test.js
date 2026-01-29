@@ -79,7 +79,7 @@ describe('inputValidator(inputData) -> void (throws on invalid, silent on valid)
   });
 
   describe('globalParams validation', () => {
-    it('should throw error for timeAndEstimateUnit not in ["days", "weeks", "months"]', () => {
+    it('should throw error for timeAndEstimateUnit not in ["dev-days", "dev-weeks"]', () => {
       const input = {
         ...validInput,
         globalParams: { ...validInput.globalParams, timeAndEstimateUnit: 'invalid' }

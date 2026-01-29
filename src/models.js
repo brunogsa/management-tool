@@ -42,9 +42,8 @@ const getNextFibonacci = (value) => {
 };
 
 const TIME_UNITS = {
-  DAYS: 'days',
-  WEEKS: 'weeks',
-  MONTHS: 'months',
+  DAYS: 'dev-days',
+  WEEKS: 'dev-weeks',
 };
 
 const TASK_TYPE = {

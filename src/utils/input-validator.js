@@ -201,7 +201,6 @@ const definitions = {
         enum: [
           TIME_UNITS.DAYS,
           TIME_UNITS.WEEKS,
-          TIME_UNITS.MONTHS,
         ],
         default: TIME_UNITS.WEEKS,
       },

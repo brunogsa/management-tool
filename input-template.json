@@ -1,6 +1,6 @@
 {
   "globalParams": {
-    "timeAndEstimateUnit": "weeks",
+    "timeAndEstimateUnit": "dev-weeks",
 
     "timeToHireByLevel": {
       "intern": 4,

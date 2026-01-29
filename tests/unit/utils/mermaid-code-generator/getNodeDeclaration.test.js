@@ -95,7 +95,7 @@ describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
 
       const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
-      expect(result).toContain('Total: 50 weeks');
+      expect(result).toContain('Total: 50 dev-weeks');
     });
 
     it('should display totalRealisticEstimate for MILESTONE', () => {
@@ -105,7 +105,7 @@ describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
 
       const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
-      expect(result).toContain('Total: 30 weeks');
+      expect(result).toContain('Total: 30 dev-weeks');
     });
 
     it('should display totalRealisticEstimate for EPIC', () => {
@@ -115,7 +115,7 @@ describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
 
       const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
-      expect(result).toContain('Total: 20 weeks');
+      expect(result).toContain('Total: 20 dev-weeks');
     });
 
     it('should not display fibonacciEstimate for folder-like tasks', () => {
@@ -139,8 +139,8 @@ describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
 
       const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
-      expect(result).toContain('Fibonnaci: 5 weeks');
-      expect(result).toContain('Realistic: 3 weeks');
+      expect(result).toContain('Fibonnaci: 5 dev-weeks');
+      expect(result).toContain('Realistic: 3 dev-weeks');
     });
 
     it('should display fibonacciEstimate and mostProbableEstimateInRange for SPIKE', () => {
@@ -151,8 +151,8 @@ describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
 
       const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
-      expect(result).toContain('Fibonnaci: 3 weeks');
-      expect(result).toContain('Realistic: 2 weeks');
+      expect(result).toContain('Fibonnaci: 3 dev-weeks');
+      expect(result).toContain('Realistic: 2 dev-weeks');
     });
 
     it('should not display totalRealisticEstimate for leaf tasks', () => {
@@ -199,7 +199,7 @@ describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
   });
 
   describe('time unit display', () => {
-    it('should display time estimates with "days" unit when TIME_UNITS.DAYS', () => {
+    it('should display time estimates with "dev-days" unit when TIME_UNITS.DAYS', () => {
       const task = new Task({ id: 'us1', title: 'User Story', type: TASK_TYPE.USER_STORY });
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
@@ -207,11 +207,11 @@ describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
 
       const result = _getNodeDeclaration(task, TIME_UNITS.DAYS);
 
-      expect(result).toContain('Fibonnaci: 5 days');
-      expect(result).toContain('Realistic: 3 days');
+      expect(result).toContain('Fibonnaci: 5 dev-days');
+      expect(result).toContain('Realistic: 3 dev-days');
     });
 
-    it('should display time estimates with "weeks" unit when TIME_UNITS.WEEKS', () => {
+    it('should display time estimates with "dev-weeks" unit when TIME_UNITS.WEEKS', () => {
       const task = new Task({ id: 'us1', title: 'User Story', type: TASK_TYPE.USER_STORY });
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
@@ -219,20 +219,20 @@ describe('_getNodeDeclaration(task, timeAndEstimateUnit) -> string', () => {
 
       const result = _getNodeDeclaration(task, TIME_UNITS.WEEKS);
 
-      expect(result).toContain('Fibonnaci: 5 weeks');
-      expect(result).toContain('Realistic: 3 weeks');
+      expect(result).toContain('Fibonnaci: 5 dev-weeks');
+      expect(result).toContain('Realistic: 3 dev-weeks');
     });
 
-    it('should display time estimates with "months" unit when TIME_UNITS.MONTHS', () => {
+    it('should display time estimates with "dev-days" unit when TIME_UNITS.DAYS', () => {
       const task = new Task({ id: 'us1', title: 'User Story', type: TASK_TYPE.USER_STORY });
-      task.fibonacciEstimate = 5;
-      task.mostProbableEstimateInRange = 3;
+      task.fibonacciEstimate = 8;
+      task.mostProbableEstimateInRange = 5;
       task.totalNumOfBlocks = 0;
 
-      const result = _getNodeDeclaration(task, TIME_UNITS.MONTHS);
+      const result = _getNodeDeclaration(task, TIME_UNITS.DAYS);
 
-      expect(result).toContain('Fibonnaci: 5 months');
-      expect(result).toContain('Realistic: 3 months');
+      expect(result).toContain('Fibonnaci: 8 dev-days');
+      expect(result).toContain('Realistic: 5 dev-days');
     });
   });
 

@@ -21,6 +21,7 @@ async function renderImage(diagramFilepath, imgName, outputFolderFilepath) {
   const svgContent = await _execPromise(`grep -o 'viewBox="[^"]*"' ${svgPath} | head -1`);
   const match = svgContent.match(/viewBox="[\d.-]+\s+[\d.-]+\s+([\d.]+)\s+([\d.]+)"/);
 
+  const SCALE = 4;
   let width = 800;
   let height = 600;
   if (match) {
@@ -31,7 +32,9 @@ async function renderImage(diagramFilepath, imgName, outputFolderFilepath) {
     console.log('Could not parse viewBox, using default 800x600');
   }
 
-  const commandToExec = `mmdc -i ${diagramFilepath} -o ${pngPath} --width ${width} --height ${height} && mv ${pngPath} ${outputFolderFilepath}`;
+  const scaledWidth = width * SCALE;
+  const scaledHeight = height * SCALE;
+  const commandToExec = `mmdc -i ${diagramFilepath} -o ${pngPath} --width ${scaledWidth} --height ${scaledHeight} && mv ${pngPath} ${outputFolderFilepath}`;
   console.log('Executing:', commandToExec, '...');
   await _execPromise(commandToExec);
 

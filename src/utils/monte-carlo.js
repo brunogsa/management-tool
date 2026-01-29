@@ -1217,7 +1217,7 @@ function _generateGanttChartMermaid({ taskStartDates, taskCompletionDates, tasks
     const blockingCount = task.totalNumOfBlocks || 0;
 
     // Build label with metadata
-    const label = `${task.title} [Est:${initialEstimate.toFixed(1)}, Rework:${finalRework.toFixed(1)}, Blocks:${blockingCount}]`;
+    const label = `${task.title} _Est=${initialEstimate.toFixed(1)} Rework=${finalRework.toFixed(1)} Blocks=${blockingCount} `;
 
     // Generate Gantt entry
     const startDateStr = _formatGanttDate(_addWeeksToDate(startDate, taskStartInfo.startWeek));
@@ -1227,28 +1227,34 @@ function _generateGanttChartMermaid({ taskStartDates, taskCompletionDates, tasks
   }
 
   // Section: Vacations
-  code += '    section Vacations\n';
-  for (const person of personnel) {
-    if (!person.vacationsAt || person.vacationsAt.length === 0) continue;
+  const hasVacations = personnel.some(p => p.vacationsAt && p.vacationsAt.length > 0);
+  if (hasVacations) {
+    code += '    section Vacations\n';
+    for (const person of personnel) {
+      if (!person.vacationsAt || person.vacationsAt.length === 0) continue;
 
-    for (let i = 0; i < person.vacationsAt.length; i++) {
-      const vacation = person.vacationsAt[i];
-      const fromStr = _formatGanttDate(vacation.from);
-      const toStr = _formatGanttDate(vacation.to);
-      code += `    ${person.name} vacation :crit, vacation-${person.id}-${i}, ${fromStr}, ${toStr}\n`;
+      for (let i = 0; i < person.vacationsAt.length; i++) {
+        const vacation = person.vacationsAt[i];
+        const fromStr = _formatGanttDate(vacation.from);
+        const toStr = _formatGanttDate(vacation.to);
+        code += `    ${person.name} vacation :crit, vacation-${person.id}-${i}, ${fromStr}, ${toStr}\n`;
+      }
     }
   }
 
   // Section: Sick Leaves
-  code += '    section Sick Leaves\n';
-  for (const person of personnel) {
-    if (!person.sickLeaves || person.sickLeaves.length === 0) continue;
+  const hasSickLeaves = personnel.some(p => p.sickLeaves && p.sickLeaves.length > 0);
+  if (hasSickLeaves) {
+    code += '    section Sick Leaves\n';
+    for (const person of personnel) {
+      if (!person.sickLeaves || person.sickLeaves.length === 0) continue;
 
-    for (let i = 0; i < person.sickLeaves.length; i++) {
-      const sickLeave = person.sickLeaves[i];
-      const fromStr = _formatGanttDate(_addWeeksToDate(startDate, sickLeave.startWeek));
-      const toStr = _formatGanttDate(_addWeeksToDate(startDate, sickLeave.endWeek));
-      code += `    ${person.name} sick :done, sick-${person.id}-${i}, ${fromStr}, ${toStr}\n`;
+      for (let i = 0; i < person.sickLeaves.length; i++) {
+        const sickLeave = person.sickLeaves[i];
+        const fromStr = _formatGanttDate(_addWeeksToDate(startDate, sickLeave.startWeek));
+        const toStr = _formatGanttDate(_addWeeksToDate(startDate, sickLeave.endWeek));
+        code += `    ${person.name} sick :done, sick-${person.id}-${i}, ${fromStr}, ${toStr}\n`;
+      }
     }
   }
 

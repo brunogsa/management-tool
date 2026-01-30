@@ -69,7 +69,7 @@ describe('tasksTreeCommand(inputJsonFilepath, outputFolderFilepath, options) -> 
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
 
     mockReadFileSync.mockReturnValue(JSON.stringify(createValidInput()));
-    mockTasksTreeUseCase.mockReturnValue('flowchart TB\n  A[Start]');
+    mockTasksTreeUseCase.mockReturnValue('flowchart LR\n  A[Start]');
     mockWriteFileSync.mockImplementation(() => {});
     mockRenderImage.mockResolvedValue(undefined);
     mockStartDiagramViewer.mockResolvedValue(undefined);
@@ -105,7 +105,7 @@ describe('tasksTreeCommand(inputJsonFilepath, outputFolderFilepath, options) -> 
 
     it('should write mermaid file to output folder', async () => {
       const outputPath = '/path/to/output';
-      const mermaidCode = 'flowchart TB\n  A[Start]';
+      const mermaidCode = 'flowchart LR\n  A[Start]';
       mockTasksTreeUseCase.mockReturnValue(mermaidCode);
 
       await tasksTreeCommand('/input.json', outputPath);

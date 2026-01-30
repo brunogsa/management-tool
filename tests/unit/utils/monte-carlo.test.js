@@ -1,4 +1,4 @@
-import { describe, it, expect, jest } from '@jest/globals';
+import { describe, it, expect } from '@jest/globals';
 import {
   initializeSimulationState,
   recordWeeklyWork,
@@ -650,38 +650,39 @@ describe('Monte Carlo Simulation', () => {
     });
 
     describe('Step 8: Percentile calculation', () => {
-      it('should calculate 50th percentile (median)', () => {
+      it('should calculate 50th percentile (median) with ceiling rounding', () => {
         const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         const percentiles = calculatePercentiles(values);
 
-        expect(percentiles.p50).toBe(5.5);
+        // Interpolated value is 5.5, Math.ceil rounds to 6 (conservative for week-based estimates)
+        expect(percentiles.p50).toBe(6);
       });
 
-      it('should calculate all required percentiles (50th, 75th, 90th, 95th, 99th)', () => {
+      it('should calculate all required percentiles with ceiling rounding', () => {
         const values = Array.from({ length: 100 }, (_, i) => i + 1);
         const percentiles = calculatePercentiles(values);
 
-        expect(percentiles.p50).toBeCloseTo(50.5, 1);
-        expect(percentiles.p75).toBeCloseTo(75.25, 1);
-        expect(percentiles.p90).toBeCloseTo(90.1, 1);
-        expect(percentiles.p95).toBeCloseTo(95.05, 1);
-        expect(percentiles.p99).toBeCloseTo(99.01, 1);
+        expect(percentiles.p50).toBe(51);
+        expect(percentiles.p75).toBe(76);
+        expect(percentiles.p90).toBe(91);
+        expect(percentiles.p95).toBe(96);
+        expect(percentiles.p99).toBe(100);
       });
 
       it('should handle unsorted input by sorting first', () => {
         const values = [10, 1, 5, 3, 8, 2, 7, 4, 9, 6];
         const percentiles = calculatePercentiles(values);
 
-        expect(percentiles.p50).toBe(5.5);
+        expect(percentiles.p50).toBe(6);
       });
 
       it('should handle small datasets', () => {
         const values = [1, 2, 3];
         const percentiles = calculatePercentiles(values);
 
-        expect(percentiles.p50).toBeCloseTo(2, 1);
-        expect(percentiles.p75).toBeCloseTo(2.5, 1);
-        expect(percentiles.p90).toBeCloseTo(2.8, 1);
+        expect(percentiles.p50).toBe(2);
+        expect(percentiles.p75).toBe(3);
+        expect(percentiles.p90).toBe(3);
       });
 
       it('should handle single value', () => {

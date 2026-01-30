@@ -3,7 +3,7 @@ import { Task, TASK_TYPE, TIME_UNITS } from '../../../../src/models.js';
 
 describe('generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) -> string', () => {
   describe('flowchart structure', () => {
-    it('should generate flowchart with "flowchart TB" header', () => {
+    it('should generate flowchart with "flowchart LR" header', () => {
       const task = new Task({ id: 'us1', title: 'Story', type: TASK_TYPE.USER_STORY });
       task.fibonacciEstimate = 5;
       task.mostProbableEstimateInRange = 3;
@@ -13,14 +13,14 @@ describe('generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) -> str
 
       const result = generateTasksTreeFlowchart([task], new Map([['us1', task]]), TIME_UNITS.WEEKS);
 
-      expect(result).toContain('flowchart TB');
+      expect(result).toContain('flowchart LR');
     });
 
     it('should generate empty flowchart for empty tasks array', () => {
       const result = generateTasksTreeFlowchart([], new Map(), TIME_UNITS.WEEKS);
 
-      expect(result).toContain('flowchart TB');
-      expect(result.trim().endsWith('flowchart TB')).toBe(true);
+      expect(result).toContain('flowchart LR');
+      expect(result.trim().endsWith('flowchart LR')).toBe(true);
     });
 
     it('should generate flowchart with single task node', () => {
@@ -286,7 +286,7 @@ describe('generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) -> str
       const result = generateTasksTreeFlowchart(tasks, taskMap, TIME_UNITS.WEEKS);
 
       // Verify flowchart header
-      expect(result).toContain('flowchart TB');
+      expect(result).toContain('flowchart LR');
 
       // Verify all nodes are present
       expect(result).toContain('proj1>');

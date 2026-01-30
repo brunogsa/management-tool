@@ -31,7 +31,7 @@ describe('Monte Carlo Basic Integration', () => {
 
       expect(result).toHaveProperty('listOfSimulations');
       expect(result).toHaveProperty('completionWeekPercentiles');
-      expect(result).toHaveProperty('ganttCharts');
+      expect(result).toHaveProperty('percentileDetails');
     });
 
     it('should run the specified number of iterations', async () => {
@@ -54,14 +54,14 @@ describe('Monte Carlo Basic Integration', () => {
       expect(result.completionWeekPercentiles).toHaveProperty('p99');
     });
 
-    it('should generate gantt charts for each percentile', async () => {
+    it('should generate percentile details for each percentile', async () => {
       const input = createDeterministicInput();
 
       const result = await monteCarloUseCase(input);
 
-      expect(result.ganttCharts).toHaveLength(5);
-      expect(result.ganttCharts.map(g => g.identifier)).toEqual([
-        '50th', '75th', '90th', '95th', '99th',
+      expect(result.percentileDetails).toHaveLength(5);
+      expect(result.percentileDetails.map(d => d.percentile)).toEqual([
+        50, 75, 90, 95, 99,
       ]);
     });
   });
@@ -153,29 +153,17 @@ describe('Monte Carlo Basic Integration', () => {
     });
   });
 
-  describe('Gantt chart generation', () => {
-    it('should generate valid mermaid code for each percentile', async () => {
+  describe('Percentile details', () => {
+    it('should include completion data for each percentile', async () => {
       const input = createDeterministicInput();
 
       const result = await monteCarloUseCase(input);
 
-      for (const chart of result.ganttCharts) {
-        expect(chart).toHaveProperty('identifier');
-        expect(chart).toHaveProperty('mermaidCode');
-        expect(chart.mermaidCode).toContain('gantt');
-        expect(chart.mermaidCode).toContain('dateFormat');
-      }
-    });
-
-    it('should include task titles in gantt charts', async () => {
-      const input = createDeterministicInput();
-
-      const result = await monteCarloUseCase(input);
-
-      for (const chart of result.ganttCharts) {
-        // Check for some key tasks from the template
-        expect(chart.mermaidCode).toContain('User can log in');
-        expect(chart.mermaidCode).toContain('User can browse');
+      for (const detail of result.percentileDetails) {
+        expect(detail).toHaveProperty('percentile');
+        expect(detail).toHaveProperty('completionWeek');
+        expect(detail).toHaveProperty('workedWeeks');
+        expect(detail).toHaveProperty('taskCompletionDates');
       }
     });
   });

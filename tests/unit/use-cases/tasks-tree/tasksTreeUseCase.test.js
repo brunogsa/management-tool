@@ -28,7 +28,7 @@ describe('tasksTreeUseCase(inputData) -> string', () => {
 
       expect(result).toBeDefined();
       expect(typeof result).toBe('string');
-      expect(result).toContain('flowchart TB');
+      expect(result).toContain('flowchart LR');
     });
 
     it('should throw error on validation failure', () => {
@@ -60,7 +60,7 @@ describe('tasksTreeUseCase(inputData) -> string', () => {
 
       const result = tasksTreeUseCase(inputData);
 
-      expect(result).toContain('flowchart TB');
+      expect(result).toContain('flowchart LR');
       expect(result).toContain('t1');
       expect(result).toContain('Task 1');
     });
@@ -91,7 +91,7 @@ describe('tasksTreeUseCase(inputData) -> string', () => {
 
       const result = tasksTreeUseCase(inputData);
 
-      expect(result).toContain('flowchart TB');
+      expect(result).toContain('flowchart LR');
       expect(result).toContain('wo-epic');
       expect(result).toContain('w/o Epic');
     });
@@ -130,7 +130,7 @@ describe('tasksTreeUseCase(inputData) -> string', () => {
 
       const result = tasksTreeUseCase(inputData);
 
-      expect(result).toContain('flowchart TB');
+      expect(result).toContain('flowchart LR');
       expect(result).toContain('us1');
       expect(result).toContain('us2');
     });
@@ -143,7 +143,7 @@ describe('tasksTreeUseCase(inputData) -> string', () => {
       const result = tasksTreeUseCase(inputData);
 
       expect(typeof result).toBe('string');
-      expect(result).toContain('flowchart TB');
+      expect(result).toContain('flowchart LR');
     });
 
     it('should include task information in generated code', () => {

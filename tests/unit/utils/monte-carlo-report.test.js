@@ -155,6 +155,9 @@ function createTestFixture() {
           taskRemainingRework: 0.05,
         },
       ],
+      unavailabilities: [
+        { personId: 'dave', personName: 'Dave', status: 'blocked' },
+      ],
     },
     {
       weekNumber: 5,
@@ -302,6 +305,44 @@ describe('generateReport', () => {
 
       // Carol (junior) has hiringStartWeek, DEFAULT_TIME_TO_HIRE for junior = 4
       expect(report).toContain('**Total Hiring:** 4 dev-weeks');
+    });
+  });
+
+  describe('week date display offset', () => {
+    it('should display week dates as start-of-week (weekNumber - 1 offset from startDate)', () => {
+      const fixture = createTestFixture();
+
+      const report = generateReport(fixture);
+
+      expect(report).toContain('**Week 1** (2025-01-06)');
+      expect(report).toContain('**Week 2** (2025-01-13)');
+      expect(report).toContain('**Week 3** (2025-01-20)');
+    });
+
+    it('should display percentile dates with start-of-week offset', () => {
+      const fixture = createTestFixture();
+
+      const report = generateReport(fixture);
+
+      expect(report).toContain('Week 5 - 2025-02-03');
+    });
+
+    it('should display project end date with start-of-week offset', () => {
+      const fixture = createTestFixture();
+
+      const report = generateReport(fixture);
+
+      expect(report).toContain('**End Date (50th):** 2025-02-03');
+    });
+
+    it('should display departure date with start-of-week offset', () => {
+      const fixture = createTestFixture();
+
+      const report = generateReport(fixture);
+
+      const lines = report.split('\n');
+      const bobRow = lines.find(l => l.includes('| Bob |'));
+      expect(bobRow).toContain('2025-01-20');
     });
   });
 
@@ -509,6 +550,33 @@ describe('generateReport', () => {
       const report = generateReport(fixture);
 
       expect(report).toContain('Recovering (sick)');
+    });
+
+    it('should show blocked unavailability in weekly timeline', () => {
+      const fixture = createTestFixture();
+
+      const report = generateReport(fixture);
+
+      expect(report).toContain('Blocked (no tasks available)');
+    });
+  });
+
+  describe('blocked dev-weeks', () => {
+    it('should display Total Blocked in project overview', () => {
+      const fixture = createTestFixture();
+
+      const report = generateReport(fixture);
+
+      // Dave is blocked in week 4 (1 dev-week)
+      expect(report).toContain('**Total Blocked:** 1 dev-weeks');
+    });
+
+    it('should show blocked weeks in per-person summary', () => {
+      const fixture = createTestFixture();
+
+      const report = generateReport(fixture);
+
+      expect(report).toContain('**Blocked Weeks:**');
     });
   });
 });

@@ -2424,6 +2424,123 @@ describe('Monte Carlo Simulation', () => {
       expect(recoveringEntries[0].personName).toBe('Worker');
     });
 
+    it('should produce "blocked" unavailability when person is available but all tasks are date-constrained', () => {
+      // Task 1: small, completes in week 1
+      const task1 = createSimpleTask();
+      task1.id = 't1';
+      task1.title = 'Task 1';
+      task1.remainingDuration = 1;
+      task1.mostProbableEstimateInRange = 1;
+
+      // Task 2: only startable far in the future
+      const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+      task2.remainingDuration = 1;
+      task2.remainingReworkDuration = 0;
+      task2.mostProbableEstimateInRange = 1;
+      task2.dependsOnTasks = [];
+      task2.tasksBeingBlocked = [];
+      task2.allTasksBeingBlocked = [];
+      task2.totalNumOfBlocks = 0;
+      task2.requiredSkills = [];
+      task2.onlyStartableAt = new Date('2025-06-01');
+
+      const tasks = [task1, task2];
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      const startDate = new Date('2025-01-01');
+
+      const worker = new Person({ id: 'worker', name: 'Worker', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      worker.skills = [];
+
+      const globalParams = createGlobalParamsWithoutRandomEvents();
+      const personnel = [worker];
+
+      const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
+
+      const allUnavailabilities = result.workedWeeks
+        .flatMap(w => w.unavailabilities || []);
+
+      const blockedEntries = allUnavailabilities.filter(u => u.status === 'blocked');
+      expect(blockedEntries.length).toBeGreaterThan(0);
+      expect(blockedEntries[0].personId).toBe('worker');
+      expect(blockedEntries[0].personName).toBe('Worker');
+    });
+
+    it('should produce "blocked" unavailability when person is available but all tasks are blocked by dependencies', () => {
+      // Task 1: small, completes in week 1 by worker1
+      const task1 = createSimpleTask();
+      task1.id = 't1';
+      task1.title = 'Task 1';
+      task1.remainingDuration = 3;
+      task1.mostProbableEstimateInRange = 3;
+      task1.tasksBeingBlocked = ['t2'];
+      task1.allTasksBeingBlocked = ['t2'];
+
+      // Task 2: depends on task 1 (blocked until task 1 completes)
+      const task2 = new Task({ id: 't2', title: 'Task 2', type: TASK_TYPE.USER_STORY });
+      task2.remainingDuration = 1;
+      task2.remainingReworkDuration = 0;
+      task2.mostProbableEstimateInRange = 1;
+      task2.dependsOnTasks = ['t1'];
+      task2.tasksBeingBlocked = [];
+      task2.allTasksBeingBlocked = [];
+      task2.totalNumOfBlocks = 0;
+      task2.requiredSkills = [];
+
+      const tasks = [task1, task2];
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      const startDate = new Date('2025-01-01');
+
+      // Worker1 does task1; worker2 is available but has nothing to do
+      const worker1 = new Person({ id: 'w1', name: 'Worker1', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      worker1.skills = [];
+      const worker2 = new Person({ id: 'w2', name: 'Worker2', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      worker2.skills = [];
+
+      const globalParams = createGlobalParamsWithoutRandomEvents();
+      const personnel = [worker1, worker2];
+
+      const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
+
+      const allUnavailabilities = result.workedWeeks
+        .flatMap(w => w.unavailabilities || []);
+
+      const blockedEntries = allUnavailabilities.filter(u => u.status === 'blocked');
+      expect(blockedEntries.length).toBeGreaterThan(0);
+      // worker2 should be the one blocked (worker1 is working on task1)
+      const worker2Blocked = blockedEntries.filter(u => u.personId === 'w2');
+      expect(worker2Blocked.length).toBeGreaterThan(0);
+      expect(worker2Blocked[0].personName).toBe('Worker2');
+    });
+
+    it('should produce "blocked" unavailability when person is available but all tasks are taken by other people', () => {
+      // Single task: only one person can work on it at a time
+      const task = createSimpleTask();
+      task.remainingDuration = 3;
+      task.mostProbableEstimateInRange = 3;
+
+      const tasks = [task];
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      const startDate = new Date('2025-01-01');
+
+      // Two workers, but only one task available
+      const worker1 = new Person({ id: 'w1', name: 'Worker1', level: LEVEL.SENIOR, isHired: true, isOnboarded: true });
+      worker1.skills = [];
+      const worker2 = new Person({ id: 'w2', name: 'Worker2', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      worker2.skills = [];
+
+      const globalParams = createGlobalParamsWithoutRandomEvents();
+      const personnel = [worker1, worker2];
+
+      const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
+
+      const allUnavailabilities = result.workedWeeks
+        .flatMap(w => w.unavailabilities || []);
+
+      const blockedEntries = allUnavailabilities.filter(u => u.status === 'blocked');
+      // At least one person should be blocked since there's only 1 task for 2 people
+      expect(blockedEntries.length).toBeGreaterThan(0);
+    });
+
     it('should produce "vacation" unavailability for a person on vacation', () => {
       const task = createSimpleTask();
       const tasks = [task];

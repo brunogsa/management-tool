@@ -724,6 +724,45 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, t
       logContext,
     });
 
+    // Record "blocked" unavailability for available personnel who got no work
+    if (!skipWorkedWeeks) {
+      let weekEntry = state.workedWeeks.find(w => w.weekNumber === state.currentWeek);
+      const assignedPersonIds = new Set(
+        (weekEntry?.assignments || []).map(a => a.personId)
+      );
+
+      const blockedPersonnel = [];
+      for (const person of personnel) {
+        if (person.hasDeparted) continue;
+        if (!isPersonHired({ person })) continue;
+        if (!isPersonOnboarded({ person })) continue;
+        if (_isPersonSick(person, state.currentWeek)) continue;
+        if (_isPersonOnVacation(person, currentDate)) continue;
+        const isStillOnboarding = person.onboardingWeeksRemaining !== undefined
+          && person.onboardingWeeksRemaining > 0;
+        if (isStillOnboarding) continue;
+
+        if (!assignedPersonIds.has(person.id)) {
+          blockedPersonnel.push({
+            personId: person.id,
+            personName: person.name,
+            status: 'blocked',
+          });
+        }
+      }
+
+      if (blockedPersonnel.length > 0) {
+        if (!weekEntry) {
+          weekEntry = { weekNumber: state.currentWeek, assignments: [] };
+          state.workedWeeks.push(weekEntry);
+        }
+        if (!weekEntry.unavailabilities) {
+          weekEntry.unavailabilities = [];
+        }
+        weekEntry.unavailabilities.push(...blockedPersonnel);
+      }
+    }
+
     // Check if simulation is complete
     if (!hadWork && _checkSimulationCompletion(incompleteTasks)) {
       info('Simulation complete', { reason: 'All tasks done', ...logContext });
@@ -1599,8 +1638,12 @@ function isPersonAvailableByDate({ person, currentDate, globalParams }) {
 // Minimum work threshold to filter out floating-point noise assignments
 const MIN_WORK_THRESHOLD = 0.005;
 
+function _weekStartDate(startDate, weekNumber) {
+  return addWeeksToDate(startDate, weekNumber - 1);
+}
+
 function _weekLabel(weekNumber, startDate) {
-  return `Week ${weekNumber} - ${formatDate(addWeeksToDate(startDate, weekNumber))}`;
+  return `Week ${weekNumber} - ${formatDate(_weekStartDate(startDate, weekNumber))}`;
 }
 
 function _computeProjectTotals({ workedWeeks, tasks, personnel, globalParams }) {
@@ -1656,6 +1699,12 @@ function _computeProjectTotals({ workedWeeks, tasks, personnel, globalParams }) 
     }
   }
 
+  let totalBlockedWeeks = 0;
+  for (const week of workedWeeks) {
+    if (!week.unavailabilities) continue;
+    totalBlockedWeeks += week.unavailabilities.filter(u => u.status === 'blocked').length;
+  }
+
   return {
     totalEffort,
     totalRework,
@@ -1666,6 +1715,7 @@ function _computeProjectTotals({ workedWeeks, tasks, personnel, globalParams }) 
     totalSickWeeks,
     totalHiringWeeks,
     totalOnboardingWeeks,
+    totalBlockedWeeks,
   };
 }
 
@@ -1686,7 +1736,7 @@ function _generatePercentileTable({ completionWeekPercentiles, startDate }) {
   for (const [key, week] of Object.entries(completionWeekPercentiles)) {
     const percentileNum = key.replace('p', '');
     const pLabel = `P${percentileNum}`;
-    const date = formatDate(addWeeksToDate(startDate, week));
+    const date = formatDate(_weekStartDate(startDate, week));
     lines.push(`| ${percentileNum}th (${pLabel}) | Week ${week} - ${date} | ${interpretations[key]} |`);
   }
 
@@ -1694,7 +1744,7 @@ function _generatePercentileTable({ completionWeekPercentiles, startDate }) {
 }
 
 function _generateProjectOverview({ percentile, completionWeek, startDate, completionWeekPercentiles, numIterations, totals }) {
-  const endDate = formatDate(addWeeksToDate(startDate, completionWeek));
+  const endDate = formatDate(_weekStartDate(startDate, completionWeek));
   const lines = [
     '# Monte Carlo Simulation Report',
     '',
@@ -1716,6 +1766,7 @@ function _generateProjectOverview({ percentile, completionWeek, startDate, compl
     `- **Total Sick:** ${totals.totalSickWeeks} dev-weeks`,
     `- **Total Hiring:** ${totals.totalHiringWeeks} dev-weeks`,
     `- **Total Onboarding:** ${totals.totalOnboardingWeeks} dev-weeks`,
+    `- **Total Blocked:** ${totals.totalBlockedWeeks} dev-weeks`,
     '',
     '### Task Dependency Graph',
     '',
@@ -1757,7 +1808,7 @@ function _generatePersonnelOverview({ personnel, startDate }) {
     const personStartDate = formatDate(_getPersonStartDate(person, startDate));
     const status = person.hasDeparted ? 'Departed' : 'Active';
     const departureDate = person.departureWeek !== undefined
-      ? formatDate(addWeeksToDate(startDate, person.departureWeek))
+      ? formatDate(_weekStartDate(startDate, person.departureWeek))
       : '-';
 
     lines.push(`| ${person.name} | ${person.level} | ${skills} | ${personStartDate} | ${departureDate} | ${status} |`);
@@ -2059,6 +2110,17 @@ function _countPersonSickWeeks(person) {
   return person.sickLeaves.reduce((sum, sl) => sum + (sl.endWeek - sl.startWeek + 1), 0);
 }
 
+function _countPersonBlockedWeeks(personId, workedWeeks) {
+  let total = 0;
+  for (const week of workedWeeks) {
+    if (!week.unavailabilities) continue;
+    total += week.unavailabilities.filter(
+      u => u.personId === personId && u.status === 'blocked'
+    ).length;
+  }
+  return total;
+}
+
 function _generatePerPersonSummary({ workedWeeks, personnel, startDate }) {
   const personTotals = _computePersonTotals(workedWeeks);
 
@@ -2067,6 +2129,7 @@ function _generatePerPersonSummary({ workedWeeks, personnel, startDate }) {
   let projectTotalRework = 0;
   let projectTotalSick = 0;
   let projectTotalVacation = 0;
+  let projectTotalBlocked = 0;
   for (const person of personnel) {
     const pd = personTotals[person.id];
     if (pd) {
@@ -2075,6 +2138,7 @@ function _generatePerPersonSummary({ workedWeeks, personnel, startDate }) {
     }
     projectTotalSick += _countPersonSickWeeks(person);
     projectTotalVacation += _countPersonVacationWeeks(person);
+    projectTotalBlocked += _countPersonBlockedWeeks(person.id, workedWeeks);
   }
 
   const lines = [
@@ -2092,11 +2156,12 @@ function _generatePerPersonSummary({ workedWeeks, personnel, startDate }) {
 
     const sickWeeks = _countPersonSickWeeks(person);
     const vacationWeeks = _countPersonVacationWeeks(person);
+    const blockedWeeks = _countPersonBlockedWeeks(person.id, workedWeeks);
 
     const personStartDate = formatDate(_getPersonStartDate(person, startDate));
 
     const departedLabel = person.hasDeparted
-      ? ` [Departed at ${formatDate(addWeeksToDate(startDate, person.departureWeek))}]`
+      ? ` [Departed at ${formatDate(_weekStartDate(startDate, person.departureWeek))}]`
       : '';
     lines.push(`#### ${person.name} (${person.level})${departedLabel}`);
     lines.push('');
@@ -2106,6 +2171,7 @@ function _generatePerPersonSummary({ workedWeeks, personnel, startDate }) {
     lines.push(`- **Total Rework Generated:** ${pd.totalRework.toFixed(2)} dev-weeks (of a total ${projectTotalRework.toFixed(2)} in the project)`);
     lines.push(`- **Sick Weeks:** ${sickWeeks} (of a total ${projectTotalSick} in the project)`);
     lines.push(`- **Vacation Weeks:** ${vacationWeeks} (of a total ${projectTotalVacation} in the project)`);
+    lines.push(`- **Blocked Weeks:** ${blockedWeeks} (of a total ${projectTotalBlocked} in the project)`);
     lines.push('');
 
     if (pd.tasksInOrder.length > 0) {
@@ -2139,7 +2205,7 @@ function _generateWeeklyTimeline({ workedWeeks, startDate }) {
   const sortedWeeks = [...workedWeeks].sort((a, b) => a.weekNumber - b.weekNumber);
 
   for (const week of sortedWeeks) {
-    const weekDate = formatDate(addWeeksToDate(startDate, week.weekNumber));
+    const weekDate = formatDate(_weekStartDate(startDate, week.weekNumber));
 
     // Filter out near-zero assignments
     const significantAssignments = week.assignments.filter(a => a.workDone >= MIN_WORK_THRESHOLD);
@@ -2170,7 +2236,7 @@ function _generateWeeklyTimeline({ workedWeeks, startDate }) {
       }
 
       for (const ua of unavailabilities) {
-        const STATUS_LABELS = { hiring: 'Hiring', onboarding: 'Onboarding', recovering: 'Recovering (sick)', vacation: 'Vacation' };
+        const STATUS_LABELS = { hiring: 'Hiring', onboarding: 'Onboarding', recovering: 'Recovering (sick)', vacation: 'Vacation', blocked: 'Blocked (no tasks available)' };
         lines.push(`| ${ua.personName} | _${STATUS_LABELS[ua.status]}_  | - | - | - | - |`);
       }
 

@@ -67,7 +67,7 @@ function generateTasksTreeFlowchart(tasks, taskMap, timeAndEstimateUnit) {
   // const RENDERER = '%%{init: {"flowchart": {"defaultRenderer": "elk"}} }%%';
 
   let diagram = RENDERER + LINE_BREAK;
-  diagram += 'flowchart TB' + LINE_BREAK;
+  diagram += 'flowchart LR' + LINE_BREAK;
 
   tasks.forEach(task => {
     diagram += IDENT + _getNodeDeclaration(task, timeAndEstimateUnit) + LINE_BREAK;

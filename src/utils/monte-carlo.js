@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { deepClone } from './graph.js';
 import { info, debug } from './logger.js';
 import runInWorker from './run-in-worker.js';
+import { formatDate, addWeeksToDate, calculateWeeksBetween } from './date.js';
 import {
   LEVEL,
   LEVEL_RANK,
@@ -128,7 +129,7 @@ function initializeSimulationState() {
   };
 }
 
-function recordWeeklyWork({ state, task, person, workDone }) {
+function recordWeeklyWork({ state, task, person, workDone, workDoneOnOriginal, workDoneOnRework }) {
   let weekEntry = state.workedWeeks.find(w => w.weekNumber === state.currentWeek);
 
   if (!weekEntry) {
@@ -143,6 +144,8 @@ function recordWeeklyWork({ state, task, person, workDone }) {
     personName: person.name,
     personLevel: person.level,
     workDone,
+    workDoneOnOriginal,
+    workDoneOnRework,
     taskRemainingDuration: task.remainingDuration,
     taskRemainingRework: task.remainingReworkDuration,
   });
@@ -372,7 +375,7 @@ function _processPersonnelLifecycle({ personnel, state, globalParams, currentDat
   // Process turnover
   for (const person of personnel) {
     if (!person.hasDeparted && shouldPersonQuit(globalParams.turnOverRate, randomFunc)) {
-      markPersonAsDeparted({ person });
+      markPersonAsDeparted({ person, currentWeek: state.currentWeek });
       const replacement = createReplacement({ person, currentWeek: state.currentWeek });
       personnel.push(replacement);
       info('Person quit and was replaced', { personId: person.id, replacementId: replacement.id, ...logContext });
@@ -469,8 +472,14 @@ function _executeAssignments({ assignments, state, globalParams, taskCompletionD
       task.remainingDuration + task.remainingReworkDuration
     );
 
+    // Capture before-state to compute work breakdown
+    const beforeDuration = task.remainingDuration;
+
     _accountWork(task, actualWork, reworkRate);
     assignedPerson.availableCapacity -= actualWork;
+
+    const workDoneOnOriginal = beforeDuration - task.remainingDuration;
+    const workDoneOnRework = actualWork - workDoneOnOriginal;
 
     // Record weekly work (skip if not needed for memory optimization)
     if (!skipWorkedWeeks) {
@@ -479,6 +488,8 @@ function _executeAssignments({ assignments, state, globalParams, taskCompletionD
         task,
         person: assignedPerson,
         workDone: actualWork,
+        workDoneOnOriginal,
+        workDoneOnRework,
       });
     }
 
@@ -645,7 +656,7 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, t
 
     // Convert startDate to hiringStartWeek for people not yet hired
     if (person.startDate && !person.hired) {
-      const weekNumber = _calculateWeeksBetween(startDate, person.startDate);
+      const weekNumber = calculateWeeksBetween(startDate, person.startDate);
       person.hiringStartWeek = Math.max(1, weekNumber);
       debug('Person startDate converted to hiringStartWeek', {
         personId: person.id,
@@ -659,10 +670,46 @@ function runSingleIteration({ tasks, personnel, globalParams, startDate, seed, t
   while (state.currentWeek < MAX_WEEKS) {
     state.currentWeek++;
     logContext.week = state.currentWeek;
-    const currentDate = _addWeeksToDate(startDate, state.currentWeek);
+    const currentDate = addWeeksToDate(startDate, state.currentWeek);
 
     // Process personnel lifecycle events (hiring, onboarding, turnover, vacations, sick leave)
     _processPersonnelLifecycle({ personnel, state, globalParams, currentDate, randomFunc, logContext });
+
+    // Record personnel unavailability statuses for detailed reports
+    if (!skipWorkedWeeks) {
+      const unavailabilities = [];
+      for (const person of personnel) {
+        if (person.hasDeparted) continue;
+
+        const isHiring = !person.hired && person.hiringStartWeek !== undefined;
+        const isOnboarding = person.hired && !person.onboarded;
+        const isSick = _isPersonSick(person, state.currentWeek);
+        const isOnVacation = _isPersonOnVacation(person, currentDate);
+
+        if (isHiring || isOnboarding || isSick || isOnVacation) {
+          let status;
+          if (isHiring) status = 'hiring';
+          else if (isOnboarding) status = 'onboarding';
+          else if (isSick) status = 'recovering';
+          else status = 'vacation';
+
+          unavailabilities.push({
+            personId: person.id,
+            personName: person.name,
+            status,
+          });
+        }
+      }
+
+      if (unavailabilities.length > 0) {
+        let weekEntry = state.workedWeeks.find(w => w.weekNumber === state.currentWeek);
+        if (!weekEntry) {
+          weekEntry = { weekNumber: state.currentWeek, assignments: [] };
+          state.workedWeeks.push(weekEntry);
+        }
+        weekEntry.unavailabilities = unavailabilities;
+      }
+    }
 
     // Process weekly work assignments and execution
     const hadWork = _processWeeklyWorkAssignments({
@@ -871,7 +918,7 @@ function _calculatePercentileQuickselect(arr, percentile) {
     }
   }
 
-  return lowerValue * (1 - weight) + upperValue * weight;
+  return Math.ceil(lowerValue * (1 - weight) + upperValue * weight);
 }
 
 function calculatePercentiles(values, percentilesOfInterest = [50, 75, 90, 95, 99]) {
@@ -1057,8 +1104,9 @@ function shouldPersonQuit(quitRate, randomFunc) {
   return randomFunc() < rate;
 }
 
-function markPersonAsDeparted({ person }) {
+function markPersonAsDeparted({ person, currentWeek }) {
   person.hasDeparted = true;
+  person.departureWeek = currentWeek;
   person.availableCapacity = 0;
 }
 
@@ -1160,13 +1208,6 @@ function extractTimelineForTargetCompletionWeek({ iterations, targetCompletionWe
   return extractTaskTimeline({ iteration });
 }
 
-function _formatGanttDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function _computeTaskStartDates(workedWeeks, tasks) {
   const taskStartDates = {};
 
@@ -1220,8 +1261,8 @@ function _generateGanttChartMermaid({ taskStartDates, taskCompletionDates, tasks
     const label = `${task.title} _Est=${initialEstimate.toFixed(1)} Rework=${finalRework.toFixed(1)} Blocks=${blockingCount} `;
 
     // Generate Gantt entry
-    const startDateStr = _formatGanttDate(_addWeeksToDate(startDate, taskStartInfo.startWeek));
-    const endDateStr = _formatGanttDate(_addWeeksToDate(startDate, completionWeek));
+    const startDateStr = formatDate(addWeeksToDate(startDate, taskStartInfo.startWeek));
+    const endDateStr = formatDate(addWeeksToDate(startDate, completionWeek));
 
     code += `    ${label} :${task.id}, ${startDateStr}, ${endDateStr}\n`;
   }
@@ -1235,8 +1276,8 @@ function _generateGanttChartMermaid({ taskStartDates, taskCompletionDates, tasks
 
       for (let i = 0; i < person.vacationsAt.length; i++) {
         const vacation = person.vacationsAt[i];
-        const fromStr = _formatGanttDate(vacation.from);
-        const toStr = _formatGanttDate(vacation.to);
+        const fromStr = formatDate(vacation.from);
+        const toStr = formatDate(vacation.to);
         code += `    ${person.name} vacation :crit, vacation-${person.id}-${i}, ${fromStr}, ${toStr}\n`;
       }
     }
@@ -1251,8 +1292,8 @@ function _generateGanttChartMermaid({ taskStartDates, taskCompletionDates, tasks
 
       for (let i = 0; i < person.sickLeaves.length; i++) {
         const sickLeave = person.sickLeaves[i];
-        const fromStr = _formatGanttDate(_addWeeksToDate(startDate, sickLeave.startWeek));
-        const toStr = _formatGanttDate(_addWeeksToDate(startDate, sickLeave.endWeek));
+        const fromStr = formatDate(addWeeksToDate(startDate, sickLeave.startWeek));
+        const toStr = formatDate(addWeeksToDate(startDate, sickLeave.endWeek));
         code += `    ${person.name} sick :done, sick-${person.id}-${i}, ${fromStr}, ${toStr}\n`;
       }
     }
@@ -1402,17 +1443,6 @@ function injectChangeRequestsIntoTaskList({ tasks, taskMap, changeRequestMilesto
   }
 }
 
-function _calculateWeeksBetween(startDate, targetDate) {
-  const diffMs = targetDate.getTime() - startDate.getTime();
-  return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
-}
-
-function _addWeeksToDate(date, weeks) {
-  const result = new Date(date);
-  result.setDate(result.getDate() + weeks * 7);
-  return result;
-}
-
 function _addPersonToVacationCalendar(vacationCalendar, week, personId) {
   if (!vacationCalendar.has(week)) {
     vacationCalendar.set(week, new Set());
@@ -1432,8 +1462,8 @@ function _buildVacationCalendar({ personnel, startDate }) {
     if (!person.vacationsAt) continue;
 
     for (const vacation of person.vacationsAt) {
-      const fromWeek = _calculateWeeksBetween(startDate, vacation.from);
-      const toWeek = _calculateWeeksBetween(startDate, vacation.to);
+      const fromWeek = calculateWeeksBetween(startDate, vacation.from);
+      const toWeek = calculateWeeksBetween(startDate, vacation.to);
 
       for (let week = fromWeek; week <= toWeek; week++) {
         _addPersonToVacationCalendar(vacationCalendar, week, person.id);
@@ -1466,8 +1496,8 @@ function _scheduleVacationForPerson({ person, currentWeek, startDate, vacationCa
     }
 
     if (!conflictFound) {
-      const fromDate = _addWeeksToDate(startDate, candidateStartWeek);
-      const toDate = _addWeeksToDate(startDate, candidateStartWeek + vacationWeeks - 1);
+      const fromDate = addWeeksToDate(startDate, candidateStartWeek);
+      const toDate = addWeeksToDate(startDate, candidateStartWeek + vacationWeeks - 1);
 
       person.vacationsAt.push({ from: fromDate, to: toDate });
 
@@ -1490,8 +1520,8 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
     if (!person.vacationsAt) continue;
 
     for (const vacation of person.vacationsAt) {
-      const fromWeek = _calculateWeeksBetween(startDate, vacation.from);
-      const toWeek = _calculateWeeksBetween(startDate, vacation.to);
+      const fromWeek = calculateWeeksBetween(startDate, vacation.from);
+      const toWeek = calculateWeeksBetween(startDate, vacation.to);
 
       for (let week = fromWeek; week <= toWeek; week++) {
         _addPersonToVacationCalendar(vacationCalendar, week, person.id);
@@ -1536,8 +1566,8 @@ function scheduleAutomaticVacations({ personnel, currentWeek, startDate }) {
         }
 
         if (!conflictFound) {
-          const fromDate = _addWeeksToDate(startDate, candidateStartWeek);
-          const toDate = _addWeeksToDate(startDate, candidateStartWeek + missingWeeks - 1);
+          const fromDate = addWeeksToDate(startDate, candidateStartWeek);
+          const toDate = addWeeksToDate(startDate, candidateStartWeek + missingWeeks - 1);
 
           person.vacationsAt.push({ from: fromDate, to: toDate });
 
@@ -1561,9 +1591,616 @@ function isPersonAvailableByDate({ person, currentDate, globalParams }) {
   const rampUpTime = globalParams.timeToRampUpByLevel[person.level];
   const totalWeeksNeeded = hiringTime + rampUpTime;
 
-  const availableDate = _addWeeksToDate(person.startDate, totalWeeksNeeded);
+  const availableDate = addWeeksToDate(person.startDate, totalWeeksNeeded);
 
   return currentDate >= availableDate;
+}
+
+// Minimum work threshold to filter out floating-point noise assignments
+const MIN_WORK_THRESHOLD = 0.005;
+
+function _weekLabel(weekNumber, startDate) {
+  return `Week ${weekNumber} - ${formatDate(addWeeksToDate(startDate, weekNumber))}`;
+}
+
+function _computeProjectTotals({ workedWeeks, tasks, personnel, globalParams }) {
+  // Total effort and rework from assignments
+  let totalEffort = 0;
+  let totalRework = 0;
+  for (const week of workedWeeks) {
+    for (const assignment of week.assignments) {
+      totalEffort += assignment.workDoneOnOriginal || 0;
+      totalRework += assignment.workDoneOnRework || 0;
+    }
+  }
+
+  // Total CRs
+  const crTasks = tasks.filter(t => t.id.startsWith('change-request-'));
+  const totalCREffort = crTasks.reduce((sum, t) => sum + (t.mostProbableEstimateInRange || 0), 0);
+
+  // Total vacation weeks across all personnel
+  let totalVacationWeeks = 0;
+  for (const person of personnel) {
+    if (!person.vacationsAt || person.vacationsAt.length === 0) continue;
+    for (const v of person.vacationsAt) {
+      const from = v.from instanceof Date ? v.from : new Date(v.from);
+      const to = v.to instanceof Date ? v.to : new Date(v.to);
+      const diffMs = to.getTime() - from.getTime();
+      totalVacationWeeks += Math.ceil(diffMs / (7 * 24 * 60 * 60 * 1000));
+    }
+  }
+
+  // Total sick weeks
+  let totalSickWeeks = 0;
+  for (const person of personnel) {
+    if (!person.sickLeaves) continue;
+    for (const sl of person.sickLeaves) {
+      totalSickWeeks += sl.endWeek - sl.startWeek + 1;
+    }
+  }
+
+  // Total hiring and onboarding weeks
+  let totalHiringWeeks = 0;
+  let totalOnboardingWeeks = 0;
+  for (const person of personnel) {
+    if (person.hiringStartWeek !== undefined) {
+      totalHiringWeeks += globalParams.timeToHireByLevel[person.level] || 0;
+    }
+    // People who went through onboarding (started as not-onboarded, or were replacements)
+    if (person.onboarded && person.hiringStartWeek !== undefined) {
+      totalOnboardingWeeks += globalParams.timeToRampUpByLevel[person.level] || 0;
+    }
+    // People who started hired but not onboarded
+    if (person.onboarded && person.hiringStartWeek === undefined && person.onboardingWeeksRemaining !== undefined) {
+      totalOnboardingWeeks += globalParams.timeToRampUpByLevel[person.level] || 0;
+    }
+  }
+
+  return {
+    totalEffort,
+    totalRework,
+    crCount: crTasks.length,
+    totalCREffort,
+    splitRate: globalParams.taskSplitRate,
+    totalVacationWeeks,
+    totalSickWeeks,
+    totalHiringWeeks,
+    totalOnboardingWeeks,
+  };
+}
+
+function _generatePercentileTable({ completionWeekPercentiles, startDate }) {
+  const lines = [
+    '| Percentile | Completion Week | Interpretation |',
+    '|------------|-----------------|----------------|',
+  ];
+
+  const interpretations = {
+    p50: 'Median - 50% chance of completing by this date',
+    p75: '75% chance of completing by this date',
+    p90: 'High confidence - 90% chance',
+    p95: 'Very high confidence - 95% chance',
+    p99: 'Near certain - 99% chance',
+  };
+
+  for (const [key, week] of Object.entries(completionWeekPercentiles)) {
+    const percentileNum = key.replace('p', '');
+    const pLabel = `P${percentileNum}`;
+    const date = formatDate(addWeeksToDate(startDate, week));
+    lines.push(`| ${percentileNum}th (${pLabel}) | Week ${week} - ${date} | ${interpretations[key]} |`);
+  }
+
+  return lines.join('\n');
+}
+
+function _generateProjectOverview({ percentile, completionWeek, startDate, completionWeekPercentiles, numIterations, totals }) {
+  const endDate = formatDate(addWeeksToDate(startDate, completionWeek));
+  const lines = [
+    '# Monte Carlo Simulation Report',
+    '',
+    `## ${percentile}th Percentile Scenario`,
+    '',
+    '### Project Overview',
+    '',
+    `- **Start Date:** ${formatDate(startDate)}`,
+    `- **End Date (${percentile}th):** ${endDate}`,
+    `- **Total Weeks:** ${completionWeek}`,
+    `- **Number of Iterations:** ${numIterations.toLocaleString()}`,
+    '',
+    '**Effort Breakdown:**',
+    '',
+    `- **Total Effort:** ${totals.totalEffort.toFixed(2)} dev-weeks`,
+    `- **Total Rework:** ${totals.totalRework.toFixed(2)} dev-weeks`,
+    `- **Total CRs:** ${totals.crCount} tasks, ${totals.totalCREffort.toFixed(2)} dev-weeks (Split Rate: ${((totals.splitRate || 0) * 100).toFixed(0)}%)`,
+    `- **Total Vacations:** ${totals.totalVacationWeeks} dev-weeks`,
+    `- **Total Sick:** ${totals.totalSickWeeks} dev-weeks`,
+    `- **Total Hiring:** ${totals.totalHiringWeeks} dev-weeks`,
+    `- **Total Onboarding:** ${totals.totalOnboardingWeeks} dev-weeks`,
+    '',
+    '### Task Dependency Graph',
+    '',
+    '![Task Dependency Graph](tasks-tree.png)',
+    '',
+    '### Completion Date Predictions (All Percentiles)',
+    '',
+    _generatePercentileTable({ completionWeekPercentiles, startDate }),
+    '',
+  ];
+
+  return lines.join('\n');
+}
+
+function _getPersonStartDate(person, projectStartDate) {
+  if (person.startDate) {
+    return person.startDate instanceof Date ? person.startDate : new Date(person.startDate);
+  }
+  // Replacements have hiringStartWeek set but no startDate
+  if (person.hiringStartWeek !== undefined) {
+    return addWeeksToDate(projectStartDate, person.hiringStartWeek);
+  }
+  return projectStartDate;
+}
+
+function _generatePersonnelOverview({ personnel, startDate }) {
+  const lines = [
+    '### Personnel',
+    '',
+    '| Name | Level | Skills | Start Date | Departure Date | Status |',
+    '|------|-------|--------|------------|----------------|--------|',
+  ];
+
+  for (const person of personnel) {
+    const skills = person.skills && person.skills.length > 0
+      ? person.skills.map(s => `${s.name} (${s.minLevel})`).join(', ')
+      : '-';
+
+    const personStartDate = formatDate(_getPersonStartDate(person, startDate));
+    const status = person.hasDeparted ? 'Departed' : 'Active';
+    const departureDate = person.departureWeek !== undefined
+      ? formatDate(addWeeksToDate(startDate, person.departureWeek))
+      : '-';
+
+    lines.push(`| ${person.name} | ${person.level} | ${skills} | ${personStartDate} | ${departureDate} | ${status} |`);
+  }
+
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+function _computeTaskFirstWeeks(workedWeeks) {
+  const taskFirstWeek = {};
+  for (const week of workedWeeks) {
+    for (const assignment of week.assignments) {
+      if (assignment.workDone < MIN_WORK_THRESHOLD) continue;
+      if (taskFirstWeek[assignment.taskId] === undefined) {
+        taskFirstWeek[assignment.taskId] = week.weekNumber;
+      }
+    }
+  }
+  return taskFirstWeek;
+}
+
+// Computes completion week for container tasks based on their descendants' completion
+function _computeContainerCompletionWeeks({ tasks, taskCompletionDates }) {
+  const containerCompletionWeeks = {};
+  const containerTasks = tasks.filter(t => isContainerTask(t.type));
+
+  for (const container of containerTasks) {
+    if (!container.allDescendantTasks || container.allDescendantTasks.length === 0) continue;
+
+    let maxWeek = 0;
+    let allCompleted = true;
+    for (const descendantId of container.allDescendantTasks) {
+      const completionWeek = taskCompletionDates[descendantId];
+      if (completionWeek === undefined) {
+        allCompleted = false;
+        break;
+      }
+      if (completionWeek > maxWeek) {
+        maxWeek = completionWeek;
+      }
+    }
+
+    if (allCompleted) {
+      containerCompletionWeeks[container.id] = maxWeek;
+    }
+  }
+
+  return containerCompletionWeeks;
+}
+
+function _generateTaskExecutionOrder({ workedWeeks, taskCompletionDates, tasks }) {
+  const taskFirstWeek = _computeTaskFirstWeeks(workedWeeks);
+  const containerCompletionWeeks = _computeContainerCompletionWeeks({ tasks, taskCompletionDates });
+  const allCompletionDates = { ...taskCompletionDates, ...containerCompletionWeeks };
+
+  // Compute container start weeks from their descendants
+  const containerFirstWeeks = {};
+  for (const task of tasks) {
+    if (!isContainerTask(task.type) || !task.allDescendantTasks) continue;
+    let minWeek = Infinity;
+    for (const descendantId of task.allDescendantTasks) {
+      const week = taskFirstWeek[descendantId];
+      if (week !== undefined && week < minWeek) {
+        minWeek = week;
+      }
+    }
+    if (minWeek < Infinity) {
+      containerFirstWeeks[task.id] = minWeek;
+    }
+  }
+
+  const allFirstWeeks = { ...taskFirstWeek, ...containerFirstWeeks };
+
+  const taskRows = tasks
+    .filter(t => allCompletionDates[t.id] !== undefined)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      type: t.type,
+      blocks: t.totalNumOfBlocks || 0,
+      startWeek: allFirstWeeks[t.id],
+      endWeek: allCompletionDates[t.id],
+    }))
+    .sort((a, b) => {
+      const aStart = a.startWeek ?? Infinity;
+      const bStart = b.startWeek ?? Infinity;
+      if (aStart !== bStart) return aStart - bStart;
+      return a.endWeek - b.endWeek;
+    });
+
+  const lines = [
+    '### Task Execution Order',
+    '',
+    'The simulation assigns tasks each week using the following priority:',
+    '',
+    '- **In-progress first** - tasks already started are finished before picking up new ones',
+    '- **Most blocking** - among new tasks, those that unblock the most downstream work are started first',
+    '- **Person-task fit** - each task is assigned to the best-fit person via a weighted score: skill affinity (35%), workload balance (25%), task continuity (20%), seniority (10%), knowledge spread (10%)',
+    '',
+    '<details>',
+    '<summary>Click to expand</summary>',
+    '',
+    '| ID | Type | Title | Blocks | Start | End |',
+    '|----|------|-------|--------|-------|-----|',
+  ];
+
+  for (const row of taskRows) {
+    const startLabel = row.startWeek !== undefined ? `Week ${row.startWeek}` : '-';
+    lines.push(`| ${row.id} | ${row.type} | ${row.title} | ${row.blocks} | ${startLabel} | Week ${row.endWeek} |`);
+  }
+
+  lines.push('');
+  lines.push('</details>');
+  lines.push('');
+  return lines.join('\n');
+}
+
+// Accumulates work breakdown for a container from all its descendant leaf tasks
+function _computeContainerWorkBreakdown({ container, workedWeeks }) {
+  const descendantIds = new Set(container.allDescendantTasks || []);
+  const contributions = {};
+  let totalOriginal = 0;
+  let totalRework = 0;
+
+  for (const week of workedWeeks) {
+    for (const assignment of week.assignments) {
+      if (!descendantIds.has(assignment.taskId)) continue;
+      if (assignment.workDone < MIN_WORK_THRESHOLD) continue;
+      if (!contributions[assignment.personId]) {
+        contributions[assignment.personId] = {
+          name: assignment.personName,
+          level: assignment.personLevel,
+          totalOriginal: 0,
+          totalRework: 0,
+        };
+      }
+      contributions[assignment.personId].totalOriginal += assignment.workDoneOnOriginal || 0;
+      contributions[assignment.personId].totalRework += assignment.workDoneOnRework || 0;
+    }
+  }
+
+  for (const contrib of Object.values(contributions)) {
+    totalOriginal += contrib.totalOriginal;
+    totalRework += contrib.totalRework;
+  }
+
+  return { contributions, totalOriginal, totalRework };
+}
+
+function _generatePerTaskDetail({ workedWeeks, tasks, taskCompletionDates, startDate }) {
+  const taskFirstWeek = _computeTaskFirstWeeks(workedWeeks);
+  const containerCompletionWeeks = _computeContainerCompletionWeeks({ tasks, taskCompletionDates });
+  const allCompletionDates = { ...taskCompletionDates, ...containerCompletionWeeks };
+
+  // Compute container start weeks from their descendants
+  const containerFirstWeeks = {};
+  for (const task of tasks) {
+    if (!isContainerTask(task.type) || !task.allDescendantTasks) continue;
+    let minWeek = Infinity;
+    for (const descendantId of task.allDescendantTasks) {
+      const week = taskFirstWeek[descendantId];
+      if (week !== undefined && week < minWeek) {
+        minWeek = week;
+      }
+    }
+    if (minWeek < Infinity) {
+      containerFirstWeeks[task.id] = minWeek;
+    }
+  }
+
+  const allFirstWeeks = { ...taskFirstWeek, ...containerFirstWeeks };
+
+  const lines = [
+    '### Per-Task Detail',
+    '',
+    '<details>',
+    '<summary>Click to expand</summary>',
+    '',
+  ];
+
+  const sortedTasks = tasks
+    .filter(t => allCompletionDates[t.id] !== undefined)
+    .sort((a, b) => {
+      const aStart = allFirstWeeks[a.id] ?? Infinity;
+      const bStart = allFirstWeeks[b.id] ?? Infinity;
+      if (aStart !== bStart) return aStart - bStart;
+      return (allCompletionDates[a.id] || 0) - (allCompletionDates[b.id] || 0);
+    });
+
+  for (const task of sortedTasks) {
+    const endWeek = allCompletionDates[task.id];
+    const isContainer = isContainerTask(task.type);
+
+    let contributions = {};
+    let taskTotalOriginal = 0;
+    let taskTotalRework = 0;
+
+    if (isContainer) {
+      const containerBreakdown = _computeContainerWorkBreakdown({ container: task, workedWeeks });
+      contributions = containerBreakdown.contributions;
+      taskTotalOriginal = containerBreakdown.totalOriginal;
+      taskTotalRework = containerBreakdown.totalRework;
+    } else {
+      for (const week of workedWeeks) {
+        for (const assignment of week.assignments) {
+          if (assignment.taskId !== task.id) continue;
+          if (assignment.workDone < MIN_WORK_THRESHOLD) continue;
+          if (!contributions[assignment.personId]) {
+            contributions[assignment.personId] = {
+              name: assignment.personName,
+              level: assignment.personLevel,
+              totalOriginal: 0,
+              totalRework: 0,
+            };
+          }
+          contributions[assignment.personId].totalOriginal += assignment.workDoneOnOriginal || 0;
+          contributions[assignment.personId].totalRework += assignment.workDoneOnRework || 0;
+        }
+      }
+      for (const contrib of Object.values(contributions)) {
+        taskTotalOriginal += contrib.totalOriginal;
+        taskTotalRework += contrib.totalRework;
+      }
+    }
+
+    const estimate = isContainer ? (task.totalRealisticEstimate || 0) : (task.mostProbableEstimateInRange || 0);
+    const startWeek = allFirstWeeks[task.id];
+    const startLabel = startWeek !== undefined ? _weekLabel(startWeek, startDate) : '-';
+
+    lines.push(`#### [${task.type}] ${task.id}: ${task.title}`);
+    lines.push('');
+    lines.push(`- **Estimate:** ${estimate} dev-weeks`);
+    lines.push(`- **Actual Effort:** ${taskTotalOriginal.toFixed(2)} dev-weeks`);
+    lines.push(`- **Rework:** ${taskTotalRework.toFixed(2)} dev-weeks`);
+    lines.push(`- **Started:** ${startLabel}`);
+    lines.push(`- **Completed:** ${_weekLabel(endWeek, startDate)}`);
+    lines.push('');
+
+    if (Object.keys(contributions).length > 0) {
+      lines.push('| Person | Level | Work Done | Rework Done |');
+      lines.push('|--------|-------|-----------|-------------|');
+      for (const contrib of Object.values(contributions)) {
+        lines.push(`| ${contrib.name} | ${contrib.level} | ${contrib.totalOriginal.toFixed(2)} | ${contrib.totalRework.toFixed(2)} |`);
+      }
+      lines.push('');
+    }
+  }
+
+  lines.push('</details>');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+function _computePersonTotals(workedWeeks) {
+  const personData = {};
+  for (const week of workedWeeks) {
+    for (const assignment of week.assignments) {
+      if (assignment.workDone < MIN_WORK_THRESHOLD) continue;
+      if (!personData[assignment.personId]) {
+        personData[assignment.personId] = {
+          totalWork: 0,
+          totalRework: 0,
+          tasksInOrder: [],
+          tasksSeen: new Set(),
+          taskContributions: {},
+        };
+      }
+      const pd = personData[assignment.personId];
+      pd.totalWork += assignment.workDone;
+      pd.totalRework += assignment.workDoneOnRework || 0;
+      if (!pd.tasksSeen.has(assignment.taskId)) {
+        pd.tasksSeen.add(assignment.taskId);
+        pd.tasksInOrder.push({ id: assignment.taskId, title: assignment.taskTitle });
+        pd.taskContributions[assignment.taskId] = 0;
+      }
+      pd.taskContributions[assignment.taskId] += assignment.workDone;
+    }
+  }
+  return personData;
+}
+
+function _countPersonVacationWeeks(person) {
+  if (!person.vacationsAt || person.vacationsAt.length === 0) return 0;
+  let total = 0;
+  for (const v of person.vacationsAt) {
+    const from = v.from instanceof Date ? v.from : new Date(v.from);
+    const to = v.to instanceof Date ? v.to : new Date(v.to);
+    const diffMs = to.getTime() - from.getTime();
+    total += Math.ceil(diffMs / (7 * 24 * 60 * 60 * 1000));
+  }
+  return total;
+}
+
+function _countPersonSickWeeks(person) {
+  if (!person.sickLeaves) return 0;
+  return person.sickLeaves.reduce((sum, sl) => sum + (sl.endWeek - sl.startWeek + 1), 0);
+}
+
+function _generatePerPersonSummary({ workedWeeks, personnel, startDate }) {
+  const personTotals = _computePersonTotals(workedWeeks);
+
+  // Compute project-wide totals for context
+  let projectTotalWork = 0;
+  let projectTotalRework = 0;
+  let projectTotalSick = 0;
+  let projectTotalVacation = 0;
+  for (const person of personnel) {
+    const pd = personTotals[person.id];
+    if (pd) {
+      projectTotalWork += pd.totalWork;
+      projectTotalRework += pd.totalRework;
+    }
+    projectTotalSick += _countPersonSickWeeks(person);
+    projectTotalVacation += _countPersonVacationWeeks(person);
+  }
+
+  const lines = [
+    '### Per-Person Summary',
+    '',
+    '<details>',
+    '<summary>Click to expand</summary>',
+    '',
+  ];
+
+  // Show all personnel (including departed) to fix the bug where
+  // departed people who contributed were missing from the report
+  for (const person of personnel) {
+    const pd = personTotals[person.id] || { totalWork: 0, totalRework: 0, tasksInOrder: [], taskContributions: {} };
+
+    const sickWeeks = _countPersonSickWeeks(person);
+    const vacationWeeks = _countPersonVacationWeeks(person);
+
+    const personStartDate = formatDate(_getPersonStartDate(person, startDate));
+
+    const departedLabel = person.hasDeparted
+      ? ` [Departed at ${formatDate(addWeeksToDate(startDate, person.departureWeek))}]`
+      : '';
+    lines.push(`#### ${person.name} (${person.level})${departedLabel}`);
+    lines.push('');
+    lines.push(`- **Start Date:** ${personStartDate}`);
+    lines.push(`- **Tasks Worked:** ${pd.tasksInOrder.length}`);
+    lines.push(`- **Total Contribution:** ${pd.totalWork.toFixed(2)} dev-weeks (of a total ${projectTotalWork.toFixed(2)} in the project)`);
+    lines.push(`- **Total Rework Generated:** ${pd.totalRework.toFixed(2)} dev-weeks (of a total ${projectTotalRework.toFixed(2)} in the project)`);
+    lines.push(`- **Sick Weeks:** ${sickWeeks} (of a total ${projectTotalSick} in the project)`);
+    lines.push(`- **Vacation Weeks:** ${vacationWeeks} (of a total ${projectTotalVacation} in the project)`);
+    lines.push('');
+
+    if (pd.tasksInOrder.length > 0) {
+      lines.push('**Tasks executed:**');
+      lines.push('');
+      lines.push('| Task ID | Title | Contribution |');
+      lines.push('|---------|-------|-------------|');
+      for (const task of pd.tasksInOrder) {
+        const contribution = pd.taskContributions[task.id] || 0;
+        lines.push(`| ${task.id} | ${task.title} | ${contribution.toFixed(2)} dev-weeks |`);
+      }
+      lines.push('');
+    }
+  }
+
+  lines.push('</details>');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+function _generateWeeklyTimeline({ workedWeeks, startDate }) {
+  const lines = [
+    '### Weekly Timeline',
+    '',
+    '<details>',
+    '<summary>Click to expand weekly assignments</summary>',
+    '',
+  ];
+
+  const sortedWeeks = [...workedWeeks].sort((a, b) => a.weekNumber - b.weekNumber);
+
+  for (const week of sortedWeeks) {
+    const weekDate = formatDate(addWeeksToDate(startDate, week.weekNumber));
+
+    // Filter out near-zero assignments
+    const significantAssignments = week.assignments.filter(a => a.workDone >= MIN_WORK_THRESHOLD);
+
+    // Count distinct people who contributed this week
+    const activePersonIds = new Set(significantAssignments.map(a => a.personId));
+    const personnelCount = activePersonIds.size;
+
+    lines.push(`**Week ${week.weekNumber}** (${weekDate}) - ${personnelCount} personnel active`);
+    lines.push('');
+
+    const unavailabilities = week.unavailabilities || [];
+
+    if (significantAssignments.length === 0 && unavailabilities.length === 0) {
+      lines.push('_No assignments_');
+    } else {
+      lines.push('| Person | Task | Work Done | Rework Done | Remaining Task Effort | Remaining Rework |');
+      lines.push('|--------|------|-----------|-------------|----------------------|------------------|');
+
+      let totalWeekWorkDone = 0;
+      let totalWeekReworkDone = 0;
+      for (const assignment of significantAssignments) {
+        const workDone = assignment.workDoneOnOriginal || 0;
+        const reworkDone = assignment.workDoneOnRework || 0;
+        totalWeekWorkDone += workDone;
+        totalWeekReworkDone += reworkDone;
+        lines.push(`| ${assignment.personName} | ${assignment.taskTitle} | ${workDone.toFixed(2)} | ${reworkDone.toFixed(2)} | ${assignment.taskRemainingDuration.toFixed(2)} | ${assignment.taskRemainingRework.toFixed(2)} |`);
+      }
+
+      for (const ua of unavailabilities) {
+        const STATUS_LABELS = { hiring: 'Hiring', onboarding: 'Onboarding', recovering: 'Recovering (sick)', vacation: 'Vacation' };
+        lines.push(`| ${ua.personName} | _${STATUS_LABELS[ua.status]}_  | - | - | - | - |`);
+      }
+
+      if (significantAssignments.length > 0) {
+        lines.push(`| **Total** | | **${totalWeekWorkDone.toFixed(2)}** | **${totalWeekReworkDone.toFixed(2)}** | | |`);
+      }
+    }
+
+    lines.push('');
+  }
+
+  lines.push('</details>');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+function generateReport({ workedWeeks, taskCompletionDates, tasks, personnel, globalParams, startDate, percentile, completionWeek, completionWeekPercentiles, numIterations }) {
+  const totals = _computeProjectTotals({ workedWeeks, tasks, personnel, globalParams });
+
+  const sections = [
+    _generateProjectOverview({ percentile, completionWeek, startDate, completionWeekPercentiles, numIterations, totals }),
+    _generatePersonnelOverview({ personnel, startDate }),
+    _generateTaskExecutionOrder({ workedWeeks, taskCompletionDates, tasks }),
+    _generatePerTaskDetail({ workedWeeks, tasks, taskCompletionDates, startDate }),
+    _generatePerPersonSummary({ workedWeeks, personnel, startDate }),
+    _generateWeeklyTimeline({ workedWeeks, startDate }),
+  ];
+
+  return sections.join('\n');
 }
 
 export {
@@ -1613,4 +2250,5 @@ export {
   extractTaskTimeline,
   extractTimelineForTargetCompletionWeek,
   generateGanttChartCode,
+  generateReport,
 };

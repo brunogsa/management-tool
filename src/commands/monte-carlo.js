@@ -1,73 +1,9 @@
 import { readFileSync, writeFileSync } from 'fs';
 
 import monteCarloUseCase from '../use-cases/monte-carlo.js';
-import renderImage from '../utils/image-renderer.js';
+import { generateReport } from '../utils/monte-carlo.js';
 import { info } from '../utils/logger.js';
 
-
-function _generateReport({ completionWeekPercentiles, numIterations, startDate }) {
-  const formatDate = (weeksFromStart) => {
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + weeksFromStart * 7);
-    return date.toISOString().split('T')[0];
-  };
-
-  const lines = [
-    '# Monte Carlo Simulation Report',
-    '',
-    '## Simulation Parameters',
-    '',
-    `- **Start Date:** ${startDate.toISOString().split('T')[0]}`,
-    `- **Number of Iterations:** ${numIterations.toLocaleString()}`,
-    '',
-    '## Completion Date Predictions',
-    '',
-    '| Percentile | Completion Week | Estimated Date | Interpretation |',
-    '|------------|-----------------|----------------|----------------|',
-    `| 50th (P50) | Week ${completionWeekPercentiles.p50} | ${formatDate(completionWeekPercentiles.p50)} | Median - 50% chance of completing by this date |`,
-    `| 75th (P75) | Week ${completionWeekPercentiles.p75} | ${formatDate(completionWeekPercentiles.p75)} | 75% chance of completing by this date |`,
-    `| 90th (P90) | Week ${completionWeekPercentiles.p90} | ${formatDate(completionWeekPercentiles.p90)} | High confidence - 90% chance |`,
-    `| 95th (P95) | Week ${completionWeekPercentiles.p95} | ${formatDate(completionWeekPercentiles.p95)} | Very high confidence - 95% chance |`,
-    `| 99th (P99) | Week ${completionWeekPercentiles.p99} | ${formatDate(completionWeekPercentiles.p99)} | Near certain - 99% chance |`,
-    '',
-    '## How to Interpret These Results',
-    '',
-    '- **P50 (Median):** Use this for internal planning. Half of simulations finished before this point.',
-    '- **P75:** A reasonable commitment date with some buffer.',
-    '- **P90:** Recommended for external commitments to stakeholders.',
-    '- **P95/P99:** Use these when you need very high confidence or contractual guarantees.',
-    '',
-    '## Gantt Charts',
-    '',
-    'The following Gantt charts show the task timeline for each percentile:',
-    '',
-    '- `simulation_50th.png` - Median scenario',
-    '- `simulation_75th.png` - 75th percentile scenario',
-    '- `simulation_90th.png` - 90th percentile scenario',
-    '- `simulation_95th.png` - 95th percentile scenario',
-    '- `simulation_99th.png` - 99th percentile scenario',
-    '',
-  ];
-
-  return lines.join('\n');
-}
-
-async function _generateGanttOutputFiles(ganttCharts, outputFilepath) {
-  const renderPromises = ganttCharts.map(async ({ identifier, mermaidCode }) => {
-    const diagramName = `simulation_${identifier}`;
-    const diagramFilepath = `${outputFilepath}/${diagramName}.mmd`;
-
-    writeFileSync(diagramFilepath, mermaidCode);
-
-    await renderImage(
-      diagramFilepath,
-      diagramName,
-      outputFilepath,
-    );
-  });
-
-  await Promise.all(renderPromises);
-}
 
 async function monteCarloCommand(inputJsonFilepath, outputFilepath) {
   try {
@@ -91,7 +27,7 @@ async function monteCarloCommand(inputJsonFilepath, outputFilepath) {
     const {
       listOfSimulations,
       completionWeekPercentiles,
-      ganttCharts,
+      percentileDetails,
     } = await monteCarloUseCase(inputData, { useParallel: true });
 
     const duration = Date.now() - startTime;
@@ -111,29 +47,36 @@ async function monteCarloCommand(inputJsonFilepath, outputFilepath) {
       percentiles: completionWeekPercentiles,
     });
 
-    // Generate report
+    // Generate per-percentile reports
     const startDate = new Date(inputData.globalParams.startDate);
     const numIterations = inputData.globalParams.numOfMonteCarloIterations;
+    const reportFilepaths = [];
 
-    const reportContent = _generateReport({ completionWeekPercentiles, numIterations, startDate });
-    const reportFilepath = `${outputFilepath}/report.md`;
-    writeFileSync(reportFilepath, reportContent);
+    for (const detail of percentileDetails) {
+      const reportContent = generateReport({
+        workedWeeks: detail.workedWeeks,
+        taskCompletionDates: detail.taskCompletionDates,
+        tasks: detail.tasks,
+        personnel: detail.personnel,
+        globalParams: detail.globalParams,
+        startDate,
+        percentile: detail.percentile,
+        completionWeek: detail.completionWeek,
+        completionWeekPercentiles,
+        numIterations,
+      });
 
-    info('Report generated', { reportFilepath });
+      const reportFilepath = `${outputFilepath}/report_${detail.percentile}th.md`;
+      writeFileSync(reportFilepath, reportContent);
+      reportFilepaths.push(reportFilepath);
+    }
+
+    info('Reports generated', { reportFilepaths });
 
     // Save simulations data for inspection and analysis
     const simulationsFilepath = `${outputFilepath}/simulations.json`;
     writeFileSync(simulationsFilepath, JSON.stringify(listOfSimulations, null, 2));
     info('Simulations data saved', { simulationsFilepath });
-
-    info('Generating Gantt charts', { chartCount: ganttCharts.length });
-
-    await _generateGanttOutputFiles(ganttCharts, outputFilepath);
-
-    info('Gantt charts generated', {
-      charts: ganttCharts.map(g => `simulation_${g.identifier}.png`),
-      outputFilepath,
-    });
 
   } catch (error) {
     console.error('Failed to perform Monte Carlo simulation:', error);

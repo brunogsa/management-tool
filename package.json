@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "tasks-tree": "yarn start tasks-tree",
     "monte-carlo": "yarn start monte-carlo",
+    "simulate": "sh -c 'yarn start tasks-tree \"$0\" \"$1\" && yarn start monte-carlo \"$0\" \"$1\"'",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/ --coverage --coverageDirectory=coverage --testPathIgnorePatterns='tests/load/'",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/unit/ --coverage --coverageDirectory=coverage/unit",
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/integration/ --coverage --coverageDirectory=coverage/integration",

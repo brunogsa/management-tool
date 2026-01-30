@@ -13,7 +13,6 @@ import {
   runSingleIteration,
   calculatePercentiles,
   findClosestIterationForTargetCompletionWeek,
-  generateGanttChartCode,
   generateChangeRequests,
   injectChangeRequestsIntoTaskList,
 } from '../utils/monte-carlo.js';
@@ -104,8 +103,8 @@ async function monteCarloUseCase(inputData, { useParallel = true, numWorkers } =
   const completionWeeks = iterations.map(iter => iter.completionWeek);
   const completionWeekPercentiles = calculatePercentiles(completionWeeks, percentilesOfInterest);
 
-  // Replay percentile iterations with full workedWeeks tracking for Gantt chart generation
-  const ganttCharts = percentilesOfInterest.map(percentile => {
+  // Replay percentile iterations with full workedWeeks tracking for detailed reports
+  const percentileDetails = percentilesOfInterest.map(percentile => {
     const targetCompletionWeek = completionWeekPercentiles[`p${percentile}`];
     const iteration = findClosestIterationForTargetCompletionWeek({ iterations, targetCompletionWeek });
 
@@ -124,21 +123,20 @@ async function monteCarloUseCase(inputData, { useParallel = true, numWorkers } =
     });
 
     return {
-      identifier: `${percentile}th`,
-      mermaidCode: generateGanttChartCode({
-        iteration: iterationWithFullData,
-        tasks: tasksCopy,
-        personnel: personnelCopy,
-        title: `${percentile}th Percentile Timeline (Week ${iterationWithFullData.completionWeek})`,
-        startDate,
-      }),
+      percentile,
+      workedWeeks: iterationWithFullData.workedWeeks,
+      taskCompletionDates: iterationWithFullData.taskCompletionDates,
+      completionWeek: iterationWithFullData.completionWeek,
+      tasks: tasksCopy,
+      personnel: personnelCopy,
+      globalParams,
     };
   });
 
   return {
     listOfSimulations: iterations,
     completionWeekPercentiles,
-    ganttCharts,
+    percentileDetails,
   };
 }
 

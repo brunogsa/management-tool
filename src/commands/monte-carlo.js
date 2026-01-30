@@ -73,11 +73,6 @@ async function monteCarloCommand(inputJsonFilepath, outputFilepath) {
 
     info('Reports generated', { reportFilepaths });
 
-    // Save simulations data for inspection and analysis
-    const simulationsFilepath = `${outputFilepath}/simulations.json`;
-    writeFileSync(simulationsFilepath, JSON.stringify(listOfSimulations, null, 2));
-    info('Simulations data saved', { simulationsFilepath });
-
   } catch (error) {
     console.error('Failed to perform Monte Carlo simulation:', error);
   }

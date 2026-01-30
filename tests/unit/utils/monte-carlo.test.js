@@ -2317,4 +2317,140 @@ describe('Monte Carlo Simulation', () => {
       });
     });
   });
+
+  describe('Unavailability statuses in workedWeeks', () => {
+    // Helper: creates a minimal task + taskMap for single-iteration tests
+    const createSimpleTask = () => {
+      const task = new Task({ id: 't1', title: 'Task 1', type: TASK_TYPE.USER_STORY });
+      task.remainingDuration = 1;
+      task.remainingReworkDuration = 0;
+      task.mostProbableEstimateInRange = 1;
+      task.dependsOnTasks = [];
+      task.tasksBeingBlocked = [];
+      task.allTasksBeingBlocked = [];
+      task.totalNumOfBlocks = 0;
+      task.requiredSkills = [];
+      return task;
+    };
+
+    const createGlobalParamsWithoutRandomEvents = () => ({
+      ...createDefaultGlobalParams(),
+      sickRate: 0,
+      turnOverRate: 0,
+    });
+
+    it('should produce "hiring" unavailability for a person not yet hired', () => {
+      const task = createSimpleTask();
+      const tasks = [task];
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      const startDate = new Date('2025-01-01');
+
+      // Worker can do the task
+      const worker = new Person({ id: 'worker', name: 'Worker', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      worker.skills = [];
+
+      // Carol is being hired (not yet available)
+      const carol = new Person({ id: 'carol', name: 'Carol', level: LEVEL.JUNIOR, isHired: false, isOnboarded: false, startDate: new Date('2025-01-01') });
+      carol.skills = [];
+
+      const globalParams = createGlobalParamsWithoutRandomEvents();
+      const personnel = [worker, carol];
+
+      const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
+
+      const allUnavailabilities = result.workedWeeks
+        .flatMap(w => w.unavailabilities || []);
+
+      const hiringEntries = allUnavailabilities.filter(u => u.status === 'hiring');
+      expect(hiringEntries.length).toBeGreaterThan(0);
+      expect(hiringEntries[0].personId).toBe('carol');
+      expect(hiringEntries[0].personName).toBe('Carol');
+    });
+
+    it('should produce "onboarding" unavailability for a person hired but not onboarded', () => {
+      const task = createSimpleTask();
+      const tasks = [task];
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      const startDate = new Date('2025-01-01');
+
+      // Worker can do the task
+      const worker = new Person({ id: 'worker', name: 'Worker', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      worker.skills = [];
+
+      // Dave is hired but still onboarding
+      const dave = new Person({ id: 'dave', name: 'Dave', level: LEVEL.MID, isHired: true, isOnboarded: false });
+      dave.skills = [];
+
+      const globalParams = createGlobalParamsWithoutRandomEvents();
+      const personnel = [worker, dave];
+
+      const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
+
+      const allUnavailabilities = result.workedWeeks
+        .flatMap(w => w.unavailabilities || []);
+
+      const onboardingEntries = allUnavailabilities.filter(u => u.status === 'onboarding');
+      expect(onboardingEntries.length).toBeGreaterThan(0);
+      expect(onboardingEntries[0].personId).toBe('dave');
+      expect(onboardingEntries[0].personName).toBe('Dave');
+    });
+
+    it('should produce "recovering" unavailability for a person who is sick', () => {
+      const task = createSimpleTask();
+      // Give enough work so simulation runs multiple weeks
+      task.remainingDuration = 5;
+      task.mostProbableEstimateInRange = 5;
+      const tasks = [task];
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      const startDate = new Date('2025-01-01');
+
+      const worker = new Person({ id: 'worker', name: 'Worker', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      worker.skills = [];
+
+      const globalParams = createGlobalParamsWithoutRandomEvents();
+      // Force sickness: rate of 1 means person always gets sick
+      globalParams.sickRate = 1;
+
+      const personnel = [worker];
+
+      const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
+
+      const allUnavailabilities = result.workedWeeks
+        .flatMap(w => w.unavailabilities || []);
+
+      const recoveringEntries = allUnavailabilities.filter(u => u.status === 'recovering');
+      expect(recoveringEntries.length).toBeGreaterThan(0);
+      expect(recoveringEntries[0].personId).toBe('worker');
+      expect(recoveringEntries[0].personName).toBe('Worker');
+    });
+
+    it('should produce "vacation" unavailability for a person on vacation', () => {
+      const task = createSimpleTask();
+      const tasks = [task];
+      const taskMap = new Map(tasks.map(t => [t.id, t]));
+      const startDate = new Date('2025-01-01');
+
+      // Two workers: one on vacation week 1, the other does the task
+      const alice = new Person({ id: 'alice', name: 'Alice', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      alice.skills = [];
+      // Vacation covering week 1 of the simulation
+      alice.vacationsAt = [{ from: new Date('2025-01-06'), to: new Date('2025-01-12') }];
+
+      const bob = new Person({ id: 'bob', name: 'Bob', level: LEVEL.MID, isHired: true, isOnboarded: true });
+      bob.skills = [];
+
+      const globalParams = createGlobalParamsWithoutRandomEvents();
+      const personnel = [alice, bob];
+
+      const result = runSingleIteration({ tasks, personnel, globalParams, startDate, taskMap });
+
+      const allUnavailabilities = result.workedWeeks
+        .flatMap(w => w.unavailabilities || []);
+
+      const vacationEntries = allUnavailabilities.filter(u => u.status === 'vacation');
+      expect(vacationEntries.length).toBeGreaterThan(0);
+      expect(vacationEntries[0].personId).toBe('alice');
+      expect(vacationEntries[0].personName).toBe('Alice');
+    });
+  });
 });

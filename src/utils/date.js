@@ -13,7 +13,7 @@ function addWeeksToDate(date, weeks) {
 
 function calculateWeeksBetween(startDate, targetDate) {
   const diffMs = targetDate.getTime() - startDate.getTime();
-  return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  return Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
 }
 
 export {
